@@ -1,118 +1,13 @@
-<!DOCTYPE html>
+<!doctype html>
 <html lang="en">
-<head>
-<meta charset="UTF-8">
-<title>Minecraft Skin Poser</title>
-<link rel="stylesheet" href="style.css">
-</head>
-
-<body>
-<h1>MINECRAFT SKIN POSER</h1>
-
-<div class="toolbar">
-    <button id="penBtn">Pen</button>
-    <button id="eraserBtn">Eraser</button>
-    <button id="shapeBtn">Shape</button>
-    <input type="color" id="colorPicker" value="#000000">
-    <input type="range" id="brushSize" min="1" max="100" value="50" title="Brush Size">
-    <button id="clearCanvasBtn">Clear Canvas</button>
-</div>
-
-<div class="app">
-
-    <!-- LEFT PANEL -->
-    <div class="panel-left">
-
-        <button id="exportBtn">Export Image</button>
-
-        <!-- Default Skins -->
-        <div class="skinButtons">
-            <button id="loadSteve" class="skinBtn"></button>
-            <button id="loadAlex" class="skinBtn"></button>
-        </div>
-
-        <!-- Poses -->
-        <h3>My Poses</h3>
-        <input type="text" id="poseNameInput" placeholder="Pose name">
-        <button id="savePose">Save Pose</button>
-        <button id="loadPose">Load Pose</button>
-
-        <!-- Uploaded Skins -->
-        <h3>My Skins</h3>
-        <input type="file" id="skinUpload" hidden>
-        <div id="uploadedSkins">
-            <button id="uploadBtn" class="addSkinBtn">+</button>
-        </div>
-
-        <!-- My Character -->
-        <h3>My Character</h3>
-        <button id="addCharacter">Add Character</button>
-        <div id="charactersList" class="charactersList"></div>
-
-        <!-- Background -->
-        <h3>Background</h3>
-        <div class="bgButtons">
-            <input type="color" id="bgColorPicker" value="#000000">
-            <input type="file" id="bgUpload" hidden>
-                        <button id="bgTransparent">Transparent</button>
-            <button id="uploadBgBtn">Upload Image</button>
-            <button id="removeBgBtn">Remove Image</button>
-        
-
-        </div>
-
-    </div>
-
-    <!-- VIEWER -->
-    <div id="renderArea">
-
-        <div id="backgroundLayer"></div>
-
-        <canvas id="drawCanvas"></canvas>
-
-        <div id="viewer"></div>
-
-    </div>
-
-    <!-- RIGHT PANEL -->
-    <div class="panel-right">
-        <div id="characterName" style="text-align: center; font-weight: bold; margin-bottom: 10px; min-height: 20px;"></div>
-        <button id="moveModeBtn">Move Character</button>
-        <button id="resetPositionBtn">Reset Position</button>
-
-        <h3>Head Up / Down</h3>
-        <input type="range" id="headX" min="-60" max="60" value="0">
-        <button class="reset" data-part="headX">Reset</button>
-
-        <h3>Head Left / Right</h3>
-        <input type="range" id="headY" min="-90" max="90" value="0">
-        <button class="reset" data-part="headY">Reset</button>
-
-        <h3>Right Arm</h3>
-        <input type="range" id="rightArmX" min="-180" max="180" value="0">
-        <input type="range" id="rightArmZ" min="-90" max="90" value="0">
-        <button class="reset" data-part="rightArm">Reset</button>
-
-        <h3>Left Arm</h3>
-        <input type="range" id="leftArmX" min="-180" max="180" value="0">
-        <input type="range" id="leftArmZ" min="-90" max="90" value="0">
-        <button class="reset" data-part="leftArm">Reset</button>
-
-        <h3>Legs</h3>
-        <input type="range" id="rightLegX" min="-90" max="90" value="0">
-        <input type="range" id="leftLegX" min="-90" max="90" value="0">
-        <button class="reset" data-part="legs">Reset</button>
-        <button id="resetAll">Reset All</button>
-
-    </div>
-
-</div>
-
-<!-- POSE GALLERY MODAL -->
-<div id="poseGalleryModal">
-    <div id="poseGalleryContent"></div>
-</div>
-<script src="https://cdn.jsdelivr.net/npm/html2canvas@1.4.1/dist/html2canvas.min.js"></script>
-<script type="module" src="main.js"></script>
-</body>
+  <head>
+    <meta charset="UTF-8" />
+    <meta name="viewport" content="width=device-width, initial-scale=1.0" />
+    <title>Minecraft Skin Poser</title>
+    <link rel="icon" href="/heads/steve_head.png" type="image/png" />
+  </head>
+  <body>
+    <div id="root"></div>
+    <script type="module" src="/src/main.jsx"></script>
+  </body>
 </html>
