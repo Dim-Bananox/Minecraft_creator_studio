@@ -1,7 +1,7 @@
 Minecraft Scene Creator
 
-Overview
-Minecraft Scene Poser is a browser-based tool that lets you upload Minecraft skins, pose the character in 3D, and export the final render.
+Overview:
+Minecraft Scene Creator is a browser-based tool that lets you upload Minecraft skins, pose the character in 3D, and export the final render.
 
 Main Features:
 1) Upload and switch between multiple skins.

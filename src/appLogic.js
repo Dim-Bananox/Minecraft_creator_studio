@@ -17,10 +17,10 @@ export function initApp() {
   const loadAlexBtn = document.getElementById("loadAlex");
   const playerUsername = document.getElementById("playerUsername");
   const fetchSkinBtn = document.getElementById("fetchSkinBtn");
+  const themeToggle = document.getElementById("themeToggle");
 
   const savePoseBtn = document.getElementById("savePose");
   const loadPoseBtn = document.getElementById("loadPose");
-  const poseNameInput = document.getElementById("poseNameInput");
   const poseGalleryModal = document.getElementById("poseGalleryModal");
   const poseGalleryContent = document.getElementById("poseGalleryContent");
 
@@ -30,13 +30,15 @@ export function initApp() {
   const uploadBgBtn = document.getElementById("uploadBgBtn");
   const bgColorPicker = document.getElementById("bgColorPicker");
   const bgTransparent = document.getElementById("bgTransparent");
+  if (bgTransparent) bgTransparent.classList.toggle("active", true);
   const removeBgBtn = document.getElementById("removeBgBtn");
 
-  const resetPositionBtn = document.getElementById("resetPositionBtn");
 
   const penBtn = document.getElementById("penBtn");
+  const lineBtn = document.getElementById("lineBtn");
   const eraserBtn = document.getElementById("eraserBtn");
   const shapeBtn = document.getElementById("shapeBtn");
+  const shapeSelect = document.getElementById("shapeSelect");
   const colorPicker = document.getElementById("colorPicker");
   const brushSize = document.getElementById("brushSize");
   const clearCanvasBtn = document.getElementById("clearCanvasBtn");
@@ -47,6 +49,13 @@ export function initApp() {
     window.__mcsceneInitialized = false;
     return () => {};
   }
+
+  const brushCursor = document.createElement("div");
+  brushCursor.id = "brushCursor";
+  brushCursor.style.display = "none";
+  renderArea.appendChild(brushCursor);
+
+  let lastCursor = null;
 
   // --- STATE ---
   let characters = [];
@@ -80,6 +89,21 @@ export function initApp() {
   // --- UTILS ---
   const deg = v => (v * Math.PI) / 180;
 
+  const setTheme = theme => {
+    document.body.classList.toggle("light", theme === "light");
+    if (themeToggle) themeToggle.textContent = theme === "light" ? "Dark" : "Light";
+    localStorage.setItem("theme", theme);
+  };
+
+  if (themeToggle) {
+    const storedTheme = localStorage.getItem("theme") || "dark";
+    setTheme(storedTheme);
+    themeToggle.onclick = () => {
+      const isLight = document.body.classList.contains("light");
+      setTheme(isLight ? "dark" : "light");
+    };
+  }
+
   function setSkin(url) {
     const sel = getSelectedCharacter();
     if (sel && sel.viewer) sel.viewer.loadSkin(url);
@@ -97,17 +121,103 @@ export function initApp() {
     loadAlexBtn.onclick = () => setSkin(ALEX_SKIN);
   }
 
-  if (fetchSkinBtn && playerUsername) {
+  const appModal = document.getElementById("appModal");
+  const modalTitle = document.getElementById("modalTitle");
+  const modalMessage = document.getElementById("modalMessage");
+  const modalLabel = document.getElementById("modalLabel");
+  const modalInput = document.getElementById("modalInput");
+  const modalConfirm = document.getElementById("modalConfirm");
+  const modalCancel = document.getElementById("modalCancel");
+  let modalResolve = null;
+
+  function openModal({
+    title,
+    message,
+    inputLabel,
+    inputPlaceholder,
+    defaultValue,
+    showInput,
+    maxLength,
+    confirmText,
+    cancelText,
+    showCancel
+  }) {
+    if (!appModal) return Promise.resolve(null);
+
+    modalTitle.textContent = title || "";
+    modalTitle.style.display = title ? "block" : "none";
+    modalMessage.textContent = message || "";
+    modalLabel.textContent = inputLabel || "";
+    modalInput.value = defaultValue || "";
+    modalInput.placeholder = inputPlaceholder || "";
+    modalInput.maxLength = typeof maxLength === "number" ? maxLength : 524288;
+
+    const hasInput = Boolean(showInput);
+    const hasLabel = hasInput && Boolean(inputLabel);
+    modalLabel.style.display = hasLabel ? "block" : "none";
+    modalInput.style.display = hasInput ? "block" : "none";
+
+    modalConfirm.textContent = confirmText || "OK";
+    modalCancel.textContent = cancelText || "Cancel";
+    modalCancel.style.display = showCancel === false ? "none" : "inline-flex";
+
+    appModal.classList.add("open");
+    appModal.setAttribute("aria-hidden", "false");
+
+    if (hasInput) {
+      setTimeout(() => modalInput.focus(), 0);
+    } else {
+      setTimeout(() => modalConfirm.focus(), 0);
+    }
+
+    return new Promise(resolve => {
+      modalResolve = resolve;
+    });
+  }
+
+  function closeModal(value) {
+    if (!appModal) return;
+    appModal.classList.remove("open");
+    appModal.setAttribute("aria-hidden", "true");
+    if (typeof modalResolve === "function") {
+      const resolver = modalResolve;
+      modalResolve = null;
+      resolver(value);
+    }
+  }
+
+  if (modalConfirm) {
+    modalConfirm.onclick = () => {
+      const value = modalInput.style.display === "block" ? modalInput.value : true;
+      closeModal(value);
+    };
+  }
+
+  if (modalCancel) {
+    modalCancel.onclick = () => closeModal(null);
+  }
+
+  if (appModal) {
+    appModal.addEventListener("click", e => {
+      if (e.target === appModal) closeModal(null);
+    });
+  }
+
+  if (fetchSkinBtn) {
     fetchSkinBtn.onclick = async () => {
-      const username = playerUsername.value.trim();
-      if (!username) {
-        alert("Please enter a Minecraft username");
+      const cleanName = (playerUsername?.value || "").trim();
+      if (!cleanName) {
+        await openModal({
+          message: "Please enter a Minecraft name.",
+          showInput: false,
+          showCancel: false
+        });
         return;
       }
 
       try {
         const uuidResponse = await fetch(
-          `/mojang/users/profiles/minecraft/${encodeURIComponent(username)}`
+          `/mojang/users/profiles/minecraft/${encodeURIComponent(cleanName)}`
         );
         if (!uuidResponse.ok) throw new Error("Player not found");
 
@@ -134,10 +244,24 @@ export function initApp() {
           : skinUrl;
 
         setSkin(proxiedSkinUrl);
-        uploadedSkins.push({ name: username, url: proxiedSkinUrl });
+        const existingIndex = uploadedSkins.findIndex(s => s.name === cleanName);
+        if (existingIndex >= 0) {
+          uploadedSkins[existingIndex].url = proxiedSkinUrl;
+        } else {
+          uploadedSkins.push({ name: cleanName, url: proxiedSkinUrl });
+        }
         renderUploadedSkins();
+        await openModal({
+          message: "Skin imported successfully",
+          showInput: false,
+          showCancel: false
+        });
       } catch (error) {
-        alert(`Error fetching skin: ${error.message}`);
+        await openModal({
+          message: `Error fetching skin: ${error.message}`,
+          showInput: false,
+          showCancel: false
+        });
       }
     };
   }
@@ -277,6 +401,17 @@ export function initApp() {
   bindSlider(sliders.rightLegX, "rightLeg", "x");
   bindSlider(sliders.leftLegX, "leftLeg", "x");
 
+  const collapsibles = document.querySelectorAll(".panel-right .panelSection.collapsible");
+  collapsibles.forEach(section => {
+    section.classList.add("collapsed");
+    const toggle = section.querySelector(".sectionToggle");
+    if (toggle) {
+      toggle.addEventListener("click", () => {
+        section.classList.toggle("collapsed");
+      });
+    }
+  });
+
   // --- Character management functions ---
   function getSelectedCharacter() {
     return characters.find(c => c.id === selectedCharacterId) || null;
@@ -296,11 +431,11 @@ export function initApp() {
 
       const visibilityBtn = document.createElement("button");
       visibilityBtn.className = "visibilityBtn";
-      visibilityBtn.textContent = c.visible ? "Show" : "Hide";
+      visibilityBtn.textContent = c.visible ? "Hide" : "Show";
       visibilityBtn.onclick = e => {
         e.stopPropagation();
         c.visible = !c.visible;
-        visibilityBtn.textContent = c.visible ? "Show" : "Hide";
+        visibilityBtn.textContent = c.visible ? "Hide" : "Show";
         if (c.wrapper) c.wrapper.style.display = c.visible ? "block" : "none";
       };
 
@@ -334,22 +469,28 @@ export function initApp() {
   function createCharacter(name = `Character ${characters.length + 1}`, skin = STEVE_SKIN) {
     const id = Date.now().toString();
     const sliderValues = Object.fromEntries(Object.keys(sliders).map(k => [k, 0]));
+    const isFirst = characters.length === 0;
+    const baseWidth = isFirst ? 480 : 320;
+    const baseHeight = isFirst ? 640 : 420;
     // create DOM wrapper + canvas for this character
     const wrapper = document.createElement("div");
     wrapper.className = "charViewport";
     wrapper.dataset.id = id;
     const cvs = document.createElement("canvas");
-    cvs.width = 320;
-    cvs.height = 420;
+    cvs.width = baseWidth;
+    cvs.height = baseHeight;
+    wrapper.style.width = `${baseWidth}px`;
+    wrapper.style.height = `${baseHeight}px`;
     cvs.style.pointerEvents = "auto"; // Ensure canvas can receive pointer events
     wrapper.appendChild(cvs);
 
     // Add resize button to viewport (top left)
     const resizeViewportBtn = document.createElement("button");
     resizeViewportBtn.className = "resizeViewportBtn";
-    resizeViewportBtn.textContent = "R";
-    resizeViewportBtn.title = "Drag to resize";
-    const aspectRatio = 320 / 420; // Keep aspect ratio
+    resizeViewportBtn.textContent = "";
+    resizeViewportBtn.title = "Resize";
+    resizeViewportBtn.setAttribute("aria-label", "Resize");
+    const aspectRatio = baseWidth / baseHeight; // Keep aspect ratio
 
     resizeViewportBtn.addEventListener("pointerdown", e => {
       e.stopPropagation();
@@ -363,10 +504,19 @@ export function initApp() {
         startLeft: parseFloat(wrapper.style.left) || 0,
         aspectRatio: aspectRatio
       };
-      wrapper.classList.add("resizing");
+      wrapper.classList.add("resizing", "movable");
     });
 
     wrapper.appendChild(resizeViewportBtn);
+
+    // Add move button to viewport (next to resize)
+    const moveViewportBtn = document.createElement("button");
+    moveViewportBtn.className = "moveViewportBtn";
+    moveViewportBtn.title = "Move";
+    moveViewportBtn.setAttribute("aria-label", "Move");
+    moveViewportBtn.innerHTML =
+      '<svg viewBox="0 0 24 24" aria-hidden="true"><path d="M12 2l3 3h-2v4h-2V5H9l3-3zm0 20l-3-3h2v-4h2v4h2l-3 3zm10-10l-3 3v-2h-4v-2h4V9l3 3zM2 12l3-3v2h4v2H5v2l-3-3z" /></svg>';
+    wrapper.appendChild(moveViewportBtn);
 
     // Add delete button to viewport
     const deleteViewportBtn = document.createElement("button");
@@ -388,6 +538,13 @@ export function initApp() {
     wrapper.appendChild(deleteViewportBtn);
 
     renderArea.appendChild(wrapper);
+    if (isFirst) {
+      const areaRect = renderArea.getBoundingClientRect();
+      const left = Math.max(0, (areaRect.width - baseWidth) / 2);
+      const top = Math.max(0, (areaRect.height - baseHeight) / 2);
+      wrapper.style.left = `${left}px`;
+      wrapper.style.top = `${top}px`;
+    }
 
     // create a skinviewer for this canvas
     const charViewer = new SkinViewer({ canvas: cvs, width: cvs.width, height: cvs.height, skin });
@@ -430,8 +587,17 @@ export function initApp() {
         y: charViewer.camera.position.y,
         z: charViewer.camera.position.z
       },
-      visible: true
+      visible: true,
+      moveButton: moveViewportBtn
     };
+
+    moveViewportBtn.addEventListener("pointerdown", e => {
+      e.stopPropagation();
+      e.preventDefault();
+      moveHoldChar = c;
+      setMoveMode(c, true);
+      startDrag(c, e);
+    });
 
     // Click on viewport to select this character
     wrapper.addEventListener("click", e => {
@@ -501,10 +667,23 @@ export function initApp() {
     // Show/hide content in right panel based on selection
     const panelRight = document.querySelector(".panel-right");
     if (panelRight) {
-      const childrenToToggle = panelRight.querySelectorAll("button, h3, input[type='range']");
-      childrenToToggle.forEach(el => {
+      panelRight.style.display = id !== null ? "" : "none";
+      const toggles = panelRight.querySelectorAll(
+        ".panelSection.collapsible, .panelSection.collapsible *"
+      );
+      toggles.forEach(el => {
         el.style.display = id !== null ? "" : "none";
       });
+
+      const resetAllBtn = panelRight.querySelector("#resetAll");
+      if (resetAllBtn) {
+        const resetSection = resetAllBtn.closest(".panelSection");
+        if (resetSection) resetSection.style.display = id !== null ? "" : "none";
+        else resetAllBtn.style.display = id !== null ? "" : "none";
+      }
+
+      const nameSection = panelRight.querySelector("#characterName")?.closest(".panelSection");
+      if (nameSection) nameSection.style.display = id !== null ? "" : "none";
     }
 
     if (id !== null) {
@@ -551,8 +730,13 @@ export function initApp() {
       if (ch.wrapper) {
         const deleteBtn = ch.wrapper.querySelector(".deleteViewportBtn");
         const resizeBtn = ch.wrapper.querySelector(".resizeViewportBtn");
+        const moveBtn = ch.wrapper.querySelector(".moveViewportBtn");
         if (deleteBtn) deleteBtn.style.display = is ? "block" : "none";
         if (resizeBtn) resizeBtn.style.display = is ? "block" : "none";
+        if (moveBtn) {
+          moveBtn.style.display = is ? "block" : "none";
+          moveBtn.classList.toggle("active", is && ch.moveEnabled);
+        }
       }
       if (ch.wrapper) ch.wrapper.style.zIndex = is ? 200 : 100;
       // Allow pointer events on selected character's canvas for rotation
@@ -561,16 +745,14 @@ export function initApp() {
       }
       // Enable rotation for selected character
       if (ch.viewer && ch.viewer.controls) {
-        ch.viewer.controls.enableRotate = is;
+        ch.viewer.controls.enableRotate = is && !ch.moveEnabled;
       }
       // Disable move mode for characters that aren't selected
-      if (!is && ch.moveEnabled) ch.moveEnabled = false;
+      if (!is && ch.moveEnabled) {
+        ch.moveEnabled = false;
+        if (ch.moveButton) ch.moveButton.classList.remove("active");
+      }
     });
-
-    // Update the move button state
-    if (typeof updateMoveButtonState === "function") {
-      updateMoveButtonState();
-    }
 
     renderCharactersList();
   }
@@ -578,9 +760,27 @@ export function initApp() {
   // Wire addCharacter button
   const addCharacterBtn = document.getElementById("addCharacter");
   if (addCharacterBtn)
-    addCharacterBtn.onclick = () => {
-      const name = prompt("Character name:", `Character ${characters.length + 1}`);
-      createCharacter(name || `Character ${characters.length + 1}`);
+    addCharacterBtn.onclick = async () => {
+      const defaultName = `Character ${characters.length + 1}`;
+      const name = await openModal({
+        message: "Name your character",
+        inputPlaceholder: defaultName,
+        showInput: true,
+        maxLength: 24
+      });
+      const cleanName = (name || "").trim() || defaultName;
+      const exists = characters.some(
+        c => c.name.trim().toLowerCase() === cleanName.toLowerCase()
+      );
+      if (exists) {
+        await openModal({
+          message: "Character name already used.",
+          showInput: false,
+          showCancel: false
+        });
+        return;
+      }
+      createCharacter(cleanName);
     };
 
   // Create initial character if none
@@ -603,6 +803,63 @@ export function initApp() {
   });
 
   // Toolbar events
+  const setShapeSelected = active => {
+    if (shapeBtn) shapeBtn.classList.toggle("selected", active);
+    if (shapeSelect) shapeSelect.classList.toggle("selected", active);
+  };
+
+  const activateShapeMode = () => {
+    shapeMode = true;
+    drawCanvas.style.pointerEvents = "auto";
+    drawCtx.globalCompositeOperation = "source-over";
+    drawCtx.strokeStyle = currentColor;
+    drawCtx.fillStyle = currentColor;
+    setShapeSelected(true);
+    if (lineBtn) lineBtn.classList.remove("selected");
+    if (penBtn) penBtn.classList.remove("selected");
+    if (eraserBtn) eraserBtn.classList.remove("selected");
+    drawMode = "";
+    selectCharacter(null);
+  };
+
+  const deactivateShapeMode = () => {
+    shapeMode = false;
+    drawCanvas.style.pointerEvents = "none";
+    setShapeSelected(false);
+    if (lineBtn) lineBtn.classList.remove("selected");
+    drawMode = "";
+  };
+
+  if (shapeSelect) {
+    if (shapeType === "line") shapeType = "rect";
+    shapeSelect.value = shapeType;
+    shapeSelect.onchange = e => {
+      shapeType = e.target.value;
+      activateShapeMode();
+    };
+  }
+
+  if (lineBtn) {
+    lineBtn.onclick = () => {
+      if (shapeMode && shapeType === "line") {
+        deactivateShapeMode();
+      } else {
+        shapeType = "line";
+        shapeMode = true;
+        drawCanvas.style.pointerEvents = "auto";
+        drawCtx.globalCompositeOperation = "source-over";
+        drawCtx.strokeStyle = currentColor;
+        drawCtx.fillStyle = currentColor;
+        if (lineBtn) lineBtn.classList.add("selected");
+        if (penBtn) penBtn.classList.remove("selected");
+        if (eraserBtn) eraserBtn.classList.remove("selected");
+        setShapeSelected(false);
+        drawMode = "";
+        selectCharacter(null);
+      }
+    };
+  }
+
   if (penBtn) {
     penBtn.onclick = () => {
       if (drawMode === "pen") {
@@ -613,8 +870,7 @@ export function initApp() {
       } else {
         // Activate pen mode
         // Disable shape mode when switching to pen
-        shapeMode = false;
-        if (shapeBtn) shapeBtn.classList.remove("selected");
+        if (shapeMode) deactivateShapeMode();
         drawMode = "pen";
         drawCanvas.style.pointerEvents = "auto";
         drawCtx.globalCompositeOperation = "source-over";
@@ -644,8 +900,7 @@ export function initApp() {
         eraserBtn.classList.remove("selected");
       } else {
         // Disable shape mode when switching to eraser
-        shapeMode = false;
-        if (shapeBtn) shapeBtn.classList.remove("selected");
+        if (shapeMode) deactivateShapeMode();
         drawMode = "eraser";
         drawCanvas.style.pointerEvents = "auto";
         drawCtx.globalCompositeOperation = "destination-out";
@@ -660,29 +915,12 @@ export function initApp() {
     shapeBtn.onclick = () => {
       if (shapeMode) {
         // If shape mode is active, toggle it off
-        shapeMode = false;
-        drawCanvas.style.pointerEvents = "none";
-        shapeBtn.classList.remove("selected");
-        drawMode = "";
+        deactivateShapeMode();
       } else {
         // Activate shape mode
-        shapeMode = true;
-        drawCanvas.style.pointerEvents = "auto";
-        // Reset composite operation and colors for proper shape rendering
-        drawCtx.globalCompositeOperation = "source-over";
-        drawCtx.strokeStyle = currentColor;
-        drawCtx.fillStyle = currentColor;
-        shapeBtn.classList.add("selected");
-        if (penBtn) penBtn.classList.remove("selected");
-        if (eraserBtn) eraserBtn.classList.remove("selected");
-        drawMode = "";
-        selectCharacter(null);
-        // Cycle through shapes: line -> rect -> circle -> line
-        const shapes = ["line", "rect", "circle"];
-        const currentIndex = shapes.indexOf(shapeType);
-        shapeType = shapes[(currentIndex + 1) % shapes.length];
-        const shapeNames = { line: "Line", rect: "Rectangle", circle: "Circle" };
-        shapeBtn.textContent = `Shape: ${shapeNames[shapeType]}`;
+        activateShapeMode();
+        if (shapeSelect) shapeType = shapeSelect.value;
+        if (shapeSelect) shapeSelect.focus();
       }
     };
   }
@@ -698,6 +936,7 @@ export function initApp() {
   if (brushSize) {
     brushSize.oninput = e => {
       drawCtx.lineWidth = e.target.value;
+      updateBrushCursor();
     };
   }
 
@@ -724,6 +963,10 @@ export function initApp() {
   drawCanvas.addEventListener("mouseup", finishDrawing);
   drawCanvas.addEventListener("mouseout", cancelDrawing);
   drawCanvas.addEventListener("mousemove", updateCursor);
+  drawCanvas.addEventListener("mouseleave", () => {
+    if (brushCursor) brushCursor.style.display = "none";
+    drawCanvas.style.cursor = "default";
+  });
 
   function startDrawing(e) {
     const coords = getCanvasCoordinates(e);
@@ -739,6 +982,16 @@ export function initApp() {
       isDrawing = true;
     } else if (drawMode === "pen" || drawMode === "eraser") {
       isDrawing = true;
+      const rect = drawCanvas.getBoundingClientRect();
+      const scaleX = rect.width / drawCanvas.width;
+      const scaleY = rect.height / drawCanvas.height;
+      const screenRadius = (drawCtx.lineWidth / 2) * ((scaleX + scaleY) / 2);
+      const rx = screenRadius / scaleX;
+      const ry = screenRadius / scaleY;
+
+      drawCtx.beginPath();
+      drawCtx.ellipse(coords.x, coords.y, rx, ry, 0, 0, 2 * Math.PI);
+      drawCtx.fill();
       drawCtx.beginPath();
       drawCtx.moveTo(coords.x, coords.y);
     }
@@ -776,6 +1029,13 @@ export function initApp() {
         drawCtx.beginPath();
         drawCtx.arc(x, y, radius, 0, 2 * Math.PI);
         drawCtx.fill();
+      } else if (shapeType === "triangle") {
+        drawCtx.beginPath();
+        drawCtx.moveTo(x + width / 2, y);
+        drawCtx.lineTo(x + width, y + height);
+        drawCtx.lineTo(x, y + height);
+        drawCtx.closePath();
+        drawCtx.fill();
       }
     } else if (drawMode === "pen" || drawMode === "eraser") {
       drawCtx.lineTo(coords.x, coords.y);
@@ -784,28 +1044,39 @@ export function initApp() {
   }
 
   function updateBrushCursor() {
-    if (drawMode === "pen" || drawMode === "eraser") {
-      const cursorCanvas = document.createElement("canvas");
-      const cursorCtx = cursorCanvas.getContext("2d");
-      const size = drawCtx.lineWidth;
-      cursorCanvas.width = size + 8;
-      cursorCanvas.height = size + 8;
+    if (drawMode === "pen" || drawMode === "eraser" || (shapeMode && shapeType === "line")) {
+      const baseSize = drawCtx.lineWidth;
+      const rect = drawCanvas.getBoundingClientRect();
+      const scaleX = rect.width / drawCanvas.width;
+      const scaleY = rect.height / drawCanvas.height;
+      const borderSize = 4;
+      const size = Math.max(2, baseSize * ((scaleX + scaleY) / 2) + borderSize * 2);
 
-      cursorCtx.beginPath();
-      cursorCtx.arc(size / 2 + 4, size / 2 + 4, size / 2, 0, 2 * Math.PI);
-      cursorCtx.strokeStyle = "rgba(0, 0, 255, 0.8)";
-      cursorCtx.lineWidth = 4;
-      cursorCtx.stroke();
+      brushCursor.style.width = `${size}px`;
+      brushCursor.style.height = `${size}px`;
+      brushCursor.style.display = "block";
+      drawCanvas.style.cursor = "none";
 
-      const dataURL = cursorCanvas.toDataURL();
-      drawCanvas.style.cursor = `url(${dataURL}) ${size / 2 + 4} ${size / 2 + 4}, crosshair`;
+      if (lastCursor) {
+        brushCursor.style.left = `${lastCursor.x}px`;
+        brushCursor.style.top = `${lastCursor.y}px`;
+      }
     } else {
+      brushCursor.style.display = "none";
       drawCanvas.style.cursor = "default";
     }
   }
 
-  function updateCursor() {
+  function updateCursor(e) {
     updateBrushCursor();
+    if (brushCursor.style.display === "block" && e) {
+      const rect = drawCanvas.getBoundingClientRect();
+      const x = e.clientX - rect.left;
+      const y = e.clientY - rect.top;
+      lastCursor = { x, y };
+      brushCursor.style.left = `${x}px`;
+      brushCursor.style.top = `${y}px`;
+    }
   }
 
   function finishDrawing(e) {
@@ -834,6 +1105,13 @@ export function initApp() {
           const radius = Math.sqrt(width * width + height * height) / 2;
           drawCtx.beginPath();
           drawCtx.arc(x, y, radius, 0, 2 * Math.PI);
+          drawCtx.fill();
+        } else if (shapeType === "triangle") {
+          drawCtx.beginPath();
+          drawCtx.moveTo(x + width / 2, y);
+          drawCtx.lineTo(x + width, y + height);
+          drawCtx.lineTo(x, y + height);
+          drawCtx.closePath();
           drawCtx.fill();
         }
       }
@@ -917,23 +1195,57 @@ export function initApp() {
 
   // --- POSES ---
   if (savePoseBtn) {
-    savePoseBtn.onclick = () => {
-      const name = poseNameInput.value.trim();
-      if (!name) return alert("Enter a pose name");
-      if (poseDB[name]) return alert("Pose already exists");
+    savePoseBtn.onclick = async () => {
+      const POSE_NAME_MAX = 24;
+      const name = await openModal({
+        message: "Name your pose",
+        inputPlaceholder: "My pose",
+        showInput: true,
+        maxLength: POSE_NAME_MAX
+      });
+      const cleanName = (name || "").trim();
+      if (!cleanName) return;
+      if (cleanName.length > POSE_NAME_MAX) {
+        await openModal({
+          message: `Pose name too long (max ${POSE_NAME_MAX} characters).`,
+          showInput: false,
+          showCancel: false
+        });
+        return;
+      }
+      if (poseDB[cleanName]) {
+        await openModal({
+          message: "Pose already exists.",
+          showInput: false,
+          showCancel: false
+        });
+        return;
+      }
 
       const sel = getSelectedCharacter();
-      poseDB[name] = {
+      poseDB[cleanName] = {
         skin: sel?.skin || STEVE_SKIN,
         data: Object.fromEntries(Object.entries(sliders).map(([k, v]) => [k, v.value]))
       };
       localStorage.setItem("poses", JSON.stringify(poseDB));
-      poseNameInput.value = "";
+      await openModal({
+        message: "Pose saved successfully.",
+        showInput: false,
+        showCancel: false
+      });
     };
   }
 
   if (loadPoseBtn) {
     loadPoseBtn.onclick = () => {
+      if (!poseDB || Object.keys(poseDB).length === 0) {
+        openModal({
+          message: "No poses saved yet.",
+          showInput: false,
+          showCancel: false
+        });
+        return;
+      }
       renderGallery();
       poseGalleryModal.style.display = "flex";
     };
@@ -1003,14 +1315,20 @@ export function initApp() {
       strong.textContent = name;
 
       const applyBtn = document.createElement("button");
+      applyBtn.className = "btnSecondary";
       applyBtn.textContent = "Apply";
       applyBtn.onclick = () => applyPose(pose);
 
       const delBtn = document.createElement("button");
+      delBtn.className = "btnGhost";
       delBtn.textContent = "Delete";
       delBtn.onclick = () => {
         delete poseDB[name];
         localStorage.setItem("poses", JSON.stringify(poseDB));
+        if (Object.keys(poseDB).length === 0) {
+          poseGalleryModal.style.display = "none";
+          return;
+        }
         renderGallery();
       };
 
@@ -1027,6 +1345,8 @@ export function initApp() {
       const target = document.getElementById("renderArea");
       if (!target) return;
 
+      const prevSelectedId = selectedCharacterId;
+
       // Save current styles
       const saved = characters.map(c => ({
         id: c.id,
@@ -1038,17 +1358,23 @@ export function initApp() {
 
       // Save renderArea border style
       const renderAreaBorder = target.style.border;
+      const renderAreaBg = target.style.background;
 
       // Hide all UI elements
       target.style.border = "none";
+      if (transparentMode) target.style.background = "transparent";
 
       // Hide delete buttons on viewports
       characters.forEach(c => {
         const deleteBtn = c.wrapper.querySelector(".deleteViewportBtn");
         const resizeBtn = c.wrapper.querySelector(".resizeViewportBtn");
+        const moveBtn = c.wrapper.querySelector(".moveViewportBtn");
         if (deleteBtn) deleteBtn.style.display = "none";
         if (resizeBtn) resizeBtn.style.display = "none";
+        if (moveBtn) moveBtn.style.display = "none";
       });
+
+      if (exportBtn) exportBtn.style.display = "none";
 
       // Hide containers and show all characters, allow overflow for zoom
       characters.forEach(c => {
@@ -1073,28 +1399,31 @@ export function initApp() {
 
       // Restore original styles
       target.style.border = renderAreaBorder;
+      target.style.background = renderAreaBg;
 
       characters.forEach(c => {
         const s = saved.find(x => x.id === c.id);
         const deleteBtn = c.wrapper.querySelector(".deleteViewportBtn");
         const resizeBtn = c.wrapper.querySelector(".resizeViewportBtn");
+        const moveBtn = c.wrapper.querySelector(".moveViewportBtn");
         if (c.wrapper && s) {
           c.wrapper.style.border = s.border;
           c.wrapper.style.background = s.bg;
           c.wrapper.style.overflow = s.overflow;
         }
-        // Restore delete button visibility
-        if (deleteBtn && s) deleteBtn.style.display = s.display || "block";
-        // Restore resize button visibility
-        if (resizeBtn) resizeBtn.style.display = "block";
-        if (deleteBtn && s) deleteBtn.style.display = s.display || "block";
+        const shouldShow = prevSelectedId && c.id === prevSelectedId;
+        if (deleteBtn && s) deleteBtn.style.display = shouldShow ? (s.display || "block") : "none";
+        if (resizeBtn) resizeBtn.style.display = shouldShow ? "block" : "none";
+        if (moveBtn) moveBtn.style.display = shouldShow ? "block" : "none";
       });
 
-      // Restore character active/movable states
-      const sel = getSelectedCharacter();
-      if (sel && sel.wrapper) {
-        sel.wrapper.classList.add("active");
-        if (sel.moveEnabled) sel.wrapper.classList.add("movable");
+      if (exportBtn) exportBtn.style.display = "block";
+
+      // Restore character active/movable states and selection UI
+      if (prevSelectedId && characters.some(c => c.id === prevSelectedId)) {
+        selectCharacter(prevSelectedId);
+      } else {
+        selectCharacter(null);
       }
 
       const link = document.createElement("a");
@@ -1108,6 +1437,10 @@ export function initApp() {
   if (uploadBgBtn && bgUpload) uploadBgBtn.onclick = () => bgUpload.click();
 
   const bgLayer = document.getElementById("backgroundLayer");
+  if (bgTransparent) {
+    transparentMode = true;
+    bgTransparent.classList.add("active");
+  }
 
   const updateBackground = () => {
     if (!bgLayer) return;
@@ -1126,6 +1459,8 @@ export function initApp() {
       bgLayer.style.backgroundImage = "";
     }
   };
+
+  updateBackground();
 
   if (bgColorPicker) {
     bgColorPicker.addEventListener("input", () => {
@@ -1163,63 +1498,45 @@ export function initApp() {
   }
 
   // --- MOVE SYSTEM ---
-  const moveBtn = document.getElementById("moveModeBtn");
   let dragging = false;
   let dragChar = null;
   let startX = 0;
   let startY = 0;
 
-  if (moveBtn) {
-    moveBtn.onclick = () => {
-      const sel = getSelectedCharacter();
-      if (!sel) {
-        alert("Select a character first");
-        return;
-      }
-      sel.moveEnabled = !sel.moveEnabled;
-      moveBtn.classList.toggle("active", sel.moveEnabled);
+  let moveHoldChar = null;
 
-      // Update movable class for all characters
-      characters.forEach(ch => {
-        if (ch.wrapper) {
-          // Only add movable class if this is the selected character AND move is enabled
-          ch.wrapper.classList.toggle("movable", ch.id === sel.id && sel.moveEnabled);
-          // Update cursor
-          if (ch.id === sel.id) {
-            ch.wrapper.style.cursor = sel.moveEnabled ? "grab" : "default";
-          }
-        }
-      });
-
-      characters.forEach(ch => {
-        if (ch.viewer && ch.viewer.controls)
-          ch.viewer.controls.enableRotate = !sel.moveEnabled && ch.id === sel.id;
-        if (ch.canvas) ch.canvas.style.pointerEvents = ch.id === sel.id && !sel.moveEnabled ? "auto" : "none";
-      });
-    };
-  }
-
-  // Update button state when any character changes
-  function updateMoveButtonState() {
-    const moveBtn = document.getElementById("moveModeBtn");
-    if (!moveBtn) return; // Early exit if button doesn't exist yet
-    const sel = getSelectedCharacter();
-    if (sel) {
-      moveBtn.classList.toggle("active", sel.moveEnabled);
+  function setMoveMode(sel, enabled) {
+    const target = sel || getSelectedCharacter();
+    if (!target) {
+      alert("Select a character first");
+      return;
     }
+    target.moveEnabled = enabled;
+
+    characters.forEach(ch => {
+      const isSelected = ch.id === target.id;
+      if (ch.wrapper) {
+        ch.wrapper.classList.toggle("movable", isSelected && target.moveEnabled);
+        if (isSelected) ch.wrapper.style.cursor = target.moveEnabled ? "grab" : "default";
+      }
+      if (ch.viewer && ch.viewer.controls)
+        ch.viewer.controls.enableRotate = isSelected && !target.moveEnabled;
+      if (ch.canvas)
+        ch.canvas.style.pointerEvents =
+          isSelected && !target.moveEnabled ? "auto" : "none";
+      if (ch.moveButton) ch.moveButton.classList.toggle("active", isSelected && target.moveEnabled);
+    });
   }
 
-  if (resetPositionBtn) {
-    resetPositionBtn.onclick = () => {
-      const sel = getSelectedCharacter();
-      if (!sel) return;
-      sel._posX = 0;
-      sel._posY = 0;
-      const scale = 1;
-      if (sel.wrapper) {
-        sel.wrapper.style.transform = `translate(0, 0) scale(${scale})`;
-      }
-    };
+  function startDrag(char, e) {
+    if (!char || selectedCharacterId !== char.id) return;
+    dragging = true;
+    dragChar = char;
+    startX = e.clientX - char._posX;
+    startY = e.clientY - char._posY;
+    char.wrapper.setPointerCapture(e.pointerId);
+    char.wrapper.classList.add("dragging");
+    char.wrapper.style.cursor = "grabbing";
   }
 
   // Global resize listeners
@@ -1294,7 +1611,7 @@ export function initApp() {
   document.addEventListener("pointerup", () => {
     if (!resizingChar || !resizeData) return;
 
-    resizingChar.wrapper.classList.remove("resizing");
+    resizingChar.wrapper.classList.remove("resizing", "movable");
     resizingChar = null;
     resizeData = null;
   });
@@ -1319,6 +1636,11 @@ export function initApp() {
     if (dragChar && dragChar.wrapper) {
       dragChar.wrapper.classList.remove("dragging");
       dragChar.wrapper.style.cursor = dragChar.moveEnabled ? "grab" : "default";
+    }
+
+    if (moveHoldChar) {
+      setMoveMode(moveHoldChar, false);
+      moveHoldChar = null;
     }
 
     dragChar = null;
