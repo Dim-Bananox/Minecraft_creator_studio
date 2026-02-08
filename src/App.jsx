@@ -95,6 +95,10 @@ export default function App() {
         <div className="homeCta">
           <span className="homeHint" data-i18n="homeMoreTools">More tools are coming soon.</span>
         </div>
+        <div className="homeLegal">
+          Minecraft is a trademark of Mojang Studios. This site is not affiliated with or
+          endorsed by Mojang or Microsoft.
+        </div>
       </div>
     );
   }

@@ -224,6 +224,15 @@ body.light .appTitle {
     font-size: 0.95rem;
 }
 
+.homeLegal {
+    position: relative;
+    z-index: 1;
+    font-size: 0.8rem;
+    line-height: 1.5;
+    color: rgba(226, 232, 240, 0.5);
+    max-width: 820px;
+}
+
 
 
 body.light .homeBackdrop {
@@ -246,7 +255,8 @@ body.light .homeSubtitle,
 body.light .homeHint,
 body.light .homeCardDesc,
 body.light .homeCardMeta,
-body.light .homeFooter {
+body.light .homeFooter,
+body.light .homeLegal {
     color: rgba(15, 23, 42, 0.7);
 }
 
