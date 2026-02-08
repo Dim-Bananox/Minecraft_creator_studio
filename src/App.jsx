@@ -1,8 +1,6 @@
 import { useEffect } from "react";
 import { initApp } from "./appLogic";
 
-const SCENE_REDIRECT_URL = "https://mccreatorstudio.com/scenecreator";
-
 const characterNameStyle = {
   textAlign: "center",
   fontWeight: "bold",
@@ -23,10 +21,6 @@ export default function App() {
 
   useEffect(() => {
     if (isSceneMode) return undefined;
-    if (shouldRedirectToSceneCreator()) {
-      window.location.replace(SCENE_REDIRECT_URL);
-      return undefined;
-    }
     return initHomeUi();
   }, [isSceneMode]);
 
@@ -389,18 +383,6 @@ export default function App() {
   );
 }
 
-function shouldRedirectToSceneCreator() {
-  if (typeof window === "undefined") return false;
-  const { hostname, href } = window.location;
-  const hostValue = hostname.toLowerCase();
-  const isIpHost = /^\d{1,3}(\.\d{1,3}){3}$/.test(hostValue);
-  const isLocal = hostValue === "localhost" || hostValue.endsWith(".local") || isIpHost;
-
-  if (isLocal) return false;
-  if (href.startsWith(SCENE_REDIRECT_URL)) return false;
-  return true;
-}
-
 function getAppMode() {
   if (typeof window === "undefined") return "home";
   const { hostname, pathname, search } = window.location;
@@ -409,7 +391,7 @@ function getAppMode() {
   const hostValue = hostname.toLowerCase();
   if (appParam === "scene") return "scene";
   if (hostValue.startsWith("scene.")) return "scene";
-  if (pathname.startsWith("/scene")) return "scene";
+  if (pathname.startsWith("/scenecreator")) return "scene";
   return "home";
 }
 
@@ -419,6 +401,10 @@ function buildAppUrl(subdomain) {
   const hostValue = hostname.toLowerCase();
   const isIpHost = /^\d{1,3}(\.\d{1,3}){3}$/.test(hostValue);
   const isLocal = hostValue === "localhost" || hostValue.endsWith(".local") || isIpHost;
+
+  if (subdomain === "scene") {
+    return "/scenecreator";
+  }
 
   if (isLocal) {
     return `/?app=${subdomain}`;
