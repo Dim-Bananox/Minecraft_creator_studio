@@ -9,36 +9,124 @@ const characterNameStyle = {
 };
 
 export default function App() {
+  const isSceneMode = getAppMode() === "scene";
+
   useEffect(() => {
+    if (!isSceneMode) return undefined;
     const cleanup = initApp();
     return () => {
       if (typeof cleanup === "function") cleanup();
     };
-  }, []);
+  }, [isSceneMode]);
+
+  useEffect(() => {
+    if (isSceneMode) return undefined;
+    return initHomeUi();
+  }, [isSceneMode]);
+
+  if (!isSceneMode) {
+    return (
+      <div className="homeLayout">
+        <div className="homeBackdrop"></div>
+        <div className="topControls">
+          <button
+            id="themeToggle"
+            className="themeToggle"
+            aria-label="Toggle theme"
+            data-i18n-aria="toggleTheme"
+          >
+            Light Mode
+          </button>
+          <div className="languageToggle" aria-label="Language">
+            <label htmlFor="languageSelect" data-i18n="languageLabel">
+              Language
+            </label>
+            <select id="languageSelect">
+              <option value="en">English</option>
+              <option value="fr">Francais</option>
+              <option value="es">Espanol</option>
+              <option value="de">Deutsch</option>
+              <option value="it">Italiano</option>
+            </select>
+          </div>
+        </div>
+        <header className="homeHero">
+          <h1 className="homeTitle" data-i18n="homeTitle">Minecraft Creator Studio</h1>
+          <p className="homeSubtitle" data-i18n="homeSubtitle">
+            A growing toolbox for Minecraft creators: scene builder, skin editor,
+            pose library, and more.
+          </p>
+        </header>
+
+        <section className="homeGrid">
+          <a className="homeCard homeCard--live" href={buildAppUrl("scene")}>
+            <div className="homeCardMeta" data-i18n="homeAvailable">Available now</div>
+            <h2 className="homeCardTitle" data-i18n="homeSceneTitle">Scene Creator</h2>
+            <p className="homeCardDesc" data-i18n="homeSceneDesc">
+              Pose characters, craft backgrounds, and export shareable renders.
+            </p>
+          </a>
+          <a className="homeCard homeCard--soon" href={buildAppUrl("skin")}>
+            <div className="homeCardMeta" data-i18n="homeComingSoon">Coming soon</div>
+            <h2 className="homeCardTitle" data-i18n="homeSkinTitle">Skin Editor</h2>
+            <p className="homeCardDesc" data-i18n="homeSkinDesc">
+              Paint, shade, and manage skins with a fast, modern workflow.
+            </p>
+          </a>
+          <a className="homeCard homeCard--soon" href={buildAppUrl("poses")}>
+            <div className="homeCardMeta" data-i18n="homeComingSoon">Coming soon</div>
+            <h2 className="homeCardTitle" data-i18n="homePoseTitle">Pose Library</h2>
+            <p className="homeCardDesc" data-i18n="homePoseDesc">
+              Browse and save pose presets for quick storytelling.
+            </p>
+          </a>
+          <a className="homeCard homeCard--soon" href={buildAppUrl("assets")}>
+            <div className="homeCardMeta" data-i18n="homeComingSoon">Coming soon</div>
+            <h2 className="homeCardTitle" data-i18n="homeAssetTitle">Asset Vault</h2>
+            <p className="homeCardDesc" data-i18n="homeAssetDesc">
+              Collect props, backgrounds, and packs in one shared hub.
+            </p>
+          </a>
+        </section>
+
+        <footer className="homeFooter">
+          <span data-i18n="homeFooter">Build on your own pace. Everything lives under one studio.</span>
+        </footer>
+        <div className="homeCta">
+          <span className="homeHint" data-i18n="homeMoreTools">More tools are coming soon.</span>
+        </div>
+      </div>
+    );
+  }
 
   return (
     <>
-      <h1 className="appTitle" data-i18n="appTitle">Minecraft Scene Creator</h1>
-      <div className="languageToggle" aria-label="Language">
-        <label htmlFor="languageSelect" data-i18n="languageLabel">
-          Language
-        </label>
-        <select id="languageSelect">
-          <option value="en">English</option>
-          <option value="fr">Francais</option>
-          <option value="es">Espanol</option>
-          <option value="de">Deutsch</option>
-          <option value="it">Italiano</option>
-        </select>
+      <a className="homeBackButton" href={buildHomeUrl()}>
+        Retour a l'accueil
+      </a>
+      <div className="topControls">
+        <button
+          id="themeToggle"
+          className="themeToggle"
+          aria-label="Toggle theme"
+          data-i18n-aria="toggleTheme"
+        >
+          Light Mode
+        </button>
+        <div className="languageToggle" aria-label="Language">
+          <label htmlFor="languageSelect" data-i18n="languageLabel">
+            Language
+          </label>
+          <select id="languageSelect">
+            <option value="en">English</option>
+            <option value="fr">Francais</option>
+            <option value="es">Espanol</option>
+            <option value="de">Deutsch</option>
+            <option value="it">Italiano</option>
+          </select>
+        </div>
       </div>
-      <button
-        id="themeToggle"
-        className="themeToggle"
-        aria-label="Toggle theme"
-        data-i18n-aria="toggleTheme"
-      >
-        Light Mode
-      </button>
+      <h1 className="appTitle" data-i18n="appTitle">Scene Creator</h1>
 
       <div className="toolbar">
         <button
@@ -293,4 +381,211 @@ export default function App() {
       </div>
     </>
   );
+}
+
+function getAppMode() {
+  if (typeof window === "undefined") return "home";
+  const { hostname, pathname, search } = window.location;
+  const params = new URLSearchParams(search);
+  const appParam = params.get("app");
+  const hostValue = hostname.toLowerCase();
+  if (appParam === "scene") return "scene";
+  if (hostValue.startsWith("scene.")) return "scene";
+  if (pathname.startsWith("/scene")) return "scene";
+  return "home";
+}
+
+function buildAppUrl(subdomain) {
+  if (typeof window === "undefined") return "#";
+  const { protocol, hostname, port } = window.location;
+  const hostValue = hostname.toLowerCase();
+  const isIpHost = /^\d{1,3}(\.\d{1,3}){3}$/.test(hostValue);
+  const isLocal = hostValue === "localhost" || hostValue.endsWith(".local") || isIpHost;
+
+  if (isLocal) {
+    return `/?app=${subdomain}`;
+  }
+
+  const hostParts = hostValue.split(".");
+  if (hostParts.length < 2) return `/?app=${subdomain}`;
+
+  const baseDomain = hostParts.slice(-2).join(".");
+  const portPart = port ? `:${port}` : "";
+  return `${protocol}//${subdomain}.${baseDomain}${portPart}/`;
+}
+
+function buildHomeUrl() {
+  if (typeof window === "undefined") return "/";
+  const { protocol, hostname, port } = window.location;
+  const hostValue = hostname.toLowerCase();
+  const isIpHost = /^\d{1,3}(\.\d{1,3}){3}$/.test(hostValue);
+  const isLocal = hostValue === "localhost" || hostValue.endsWith(".local") || isIpHost;
+
+  if (isLocal) {
+    return "/";
+  }
+
+  const hostParts = hostValue.split(".");
+  if (hostParts.length < 2) return "/";
+
+  const baseDomain = hostParts.slice(-2).join(".");
+  const portPart = port ? `:${port}` : "";
+  return `${protocol}//${baseDomain}${portPart}/`;
+}
+
+const homeTranslations = {
+  en: {
+    homeTitle: "Minecraft Creator Studio",
+    homeSubtitle: "A growing toolbox for Minecraft creators: scene builder, skin editor, pose library, and more.",
+    homeAvailable: "Available now",
+    homeComingSoon: "Coming soon",
+    homeSceneTitle: "Scene Creator",
+    homeSceneDesc: "Pose characters, craft backgrounds, and export shareable renders.",
+    homeSkinTitle: "Skin Editor",
+    homeSkinDesc: "Paint, shade, and manage skins with a fast, modern workflow.",
+    homePoseTitle: "Pose Library",
+    homePoseDesc: "Browse and save pose presets for quick storytelling.",
+    homeAssetTitle: "Asset Vault",
+    homeAssetDesc: "Collect props, backgrounds, and packs in one shared hub.",
+    homeFooter: "Build on your own pace. Everything lives under one studio.",
+    homeMoreTools: "More tools are coming soon.",
+    languageLabel: "Language",
+    toggleTheme: "Toggle theme",
+    lightMode: "Light Mode",
+    darkMode: "Dark Mode"
+  },
+  fr: {
+    homeTitle: "Minecraft Creator Studio",
+    homeSubtitle: "Une boite a outils pour les createurs Minecraft: scenes, skins, poses, et plus.",
+    homeAvailable: "Disponible",
+    homeComingSoon: "Bientot",
+    homeSceneTitle: "Createur de Scene",
+    homeSceneDesc: "Pose des personnages, cree des fonds, et exporte des rendus.",
+    homeSkinTitle: "Editeur de Skin",
+    homeSkinDesc: "Peins, ombre, et gere tes skins rapidement.",
+    homePoseTitle: "Bibliotheque de Poses",
+    homePoseDesc: "Parcours et sauvegarde des poses pour tes histoires.",
+    homeAssetTitle: "Coffre d'Assets",
+    homeAssetDesc: "Regroupe accessoires, fonds, et packs au meme endroit.",
+    homeFooter: "Tout au meme endroit, a ton rythme.",
+    homeMoreTools: "D'autres outils arrivent bientot.",
+    languageLabel: "Langue",
+    toggleTheme: "Changer le theme",
+    lightMode: "Mode Clair",
+    darkMode: "Mode Sombre"
+  },
+  es: {
+    homeTitle: "Minecraft Creator Studio",
+    homeSubtitle: "Un conjunto de herramientas para creadores de Minecraft: escenas, skins, poses y mas.",
+    homeAvailable: "Disponible",
+    homeComingSoon: "Muy pronto",
+    homeSceneTitle: "Creador de Escenas",
+    homeSceneDesc: "Posa personajes, crea fondos y exporta renders compartibles.",
+    homeSkinTitle: "Editor de Skins",
+    homeSkinDesc: "Pinta, sombrea y gestiona skins con un flujo rapido.",
+    homePoseTitle: "Biblioteca de Poses",
+    homePoseDesc: "Explora y guarda poses para tus historias.",
+    homeAssetTitle: "Boveda de Assets",
+    homeAssetDesc: "Reune accesorios, fondos y packs en un solo lugar.",
+    homeFooter: "Todo en un solo estudio, a tu ritmo.",
+    homeMoreTools: "Mas herramientas muy pronto.",
+    languageLabel: "Idioma",
+    toggleTheme: "Cambiar tema",
+    lightMode: "Modo Claro",
+    darkMode: "Modo Oscuro"
+  },
+  de: {
+    homeTitle: "Minecraft Creator Studio",
+    homeSubtitle: "Ein Werkzeugkasten fur Minecraft-Creator: Szenen, Skins, Posen und mehr.",
+    homeAvailable: "Jetzt verfugbar",
+    homeComingSoon: "Bald",
+    homeSceneTitle: "Szenen-Editor",
+    homeSceneDesc: "Posiere Charaktere, baue Hintergrunde und exportiere Render.",
+    homeSkinTitle: "Skin-Editor",
+    homeSkinDesc: "Malen, schattieren und Skins schnell verwalten.",
+    homePoseTitle: "Posen-Bibliothek",
+    homePoseDesc: "Durchsuche und speichere Posen fur Storytelling.",
+    homeAssetTitle: "Asset-Tresor",
+    homeAssetDesc: "Sammle Props, Hintergrunde und Packs zentral.",
+    homeFooter: "Alles in einem Studio, in deinem Tempo.",
+    homeMoreTools: "Weitere Tools folgen bald.",
+    languageLabel: "Sprache",
+    toggleTheme: "Thema wechseln",
+    lightMode: "Heller Modus",
+    darkMode: "Dunkler Modus"
+  },
+  it: {
+    homeTitle: "Minecraft Creator Studio",
+    homeSubtitle: "Una cassetta degli attrezzi per creator Minecraft: scene, skin, pose e altro.",
+    homeAvailable: "Disponibile",
+    homeComingSoon: "In arrivo",
+    homeSceneTitle: "Creatore di Scene",
+    homeSceneDesc: "Poni personaggi, crea sfondi ed esporta render.",
+    homeSkinTitle: "Editor di Skin",
+    homeSkinDesc: "Dipingi, ombreggia e gestisci skin rapidamente.",
+    homePoseTitle: "Libreria Pose",
+    homePoseDesc: "Sfoglia e salva pose per storytelling.",
+    homeAssetTitle: "Archivio Asset",
+    homeAssetDesc: "Raccogli oggetti, sfondi e pack in un hub unico.",
+    homeFooter: "Tutto in un unico studio, al tuo ritmo.",
+    homeMoreTools: "Altri strumenti in arrivo.",
+    languageLabel: "Lingua",
+    toggleTheme: "Cambia tema",
+    lightMode: "Modalita Chiara",
+    darkMode: "Modalita Scura"
+  }
+};
+
+function initHomeUi() {
+  const languageSelect = document.getElementById("languageSelect");
+  const themeToggle = document.getElementById("themeToggle");
+
+  let currentLanguage = localStorage.getItem("language") || "en";
+  const t = key => homeTranslations[currentLanguage]?.[key] || homeTranslations.en[key] || key;
+
+  const updateThemeLabel = () => {
+    if (!themeToggle) return;
+    const isLight = document.body.classList.contains("light");
+    themeToggle.textContent = isLight ? t("darkMode") : t("lightMode");
+  };
+
+  const applyLanguage = nextLanguage => {
+    if (nextLanguage) currentLanguage = nextLanguage;
+    localStorage.setItem("language", currentLanguage);
+    if (languageSelect) languageSelect.value = currentLanguage;
+
+    document.querySelectorAll("[data-i18n]").forEach(el => {
+      el.textContent = t(el.dataset.i18n);
+    });
+    document.querySelectorAll("[data-i18n-aria]").forEach(el => {
+      el.setAttribute("aria-label", t(el.dataset.i18nAria));
+    });
+
+    updateThemeLabel();
+  };
+
+  const setTheme = theme => {
+    document.body.classList.toggle("light", theme === "light");
+    localStorage.setItem("theme", theme);
+    updateThemeLabel();
+  };
+
+  applyLanguage(currentLanguage);
+  setTheme(localStorage.getItem("theme") || "dark");
+
+  if (themeToggle) {
+    themeToggle.onclick = () => {
+      const isLight = document.body.classList.contains("light");
+      setTheme(isLight ? "dark" : "light");
+    };
+  }
+
+  if (languageSelect) {
+    languageSelect.onchange = e => applyLanguage(e.target.value);
+  }
+
+  return () => {
+    if (themeToggle) themeToggle.onclick = null;
+    if (languageSelect) languageSelect.onchange = null;
+  };
 }

@@ -95,7 +95,7 @@ export function initApp() {
 
   const translations = {
     en: {
-      appTitle: "Minecraft Scene Creator",
+      appTitle: "Scene Creator",
       languageLabel: "Language",
       toggleTheme: "Toggle theme",
       lightMode: "Light Mode",
@@ -156,7 +156,7 @@ export function initApp() {
       shapeTriangle: "Triangle"
     },
     fr: {
-      appTitle: "Createur de Scene Minecraft",
+      appTitle: "Createur de Scene",
       languageLabel: "Langue",
       toggleTheme: "Changer le theme",
       lightMode: "Mode Clair",
@@ -217,7 +217,7 @@ export function initApp() {
       shapeTriangle: "Triangle"
     },
     es: {
-      appTitle: "Creador de Escenas Minecraft",
+      appTitle: "Creador de Escenas",
       languageLabel: "Idioma",
       toggleTheme: "Cambiar tema",
       lightMode: "Modo Claro",
@@ -278,7 +278,7 @@ export function initApp() {
       shapeTriangle: "Triangulo"
     },
     de: {
-      appTitle: "Minecraft Szenenersteller",
+      appTitle: "Szenenersteller",
       languageLabel: "Sprache",
       toggleTheme: "Thema wechseln",
       lightMode: "Heller Modus",
@@ -339,7 +339,7 @@ export function initApp() {
       shapeTriangle: "Dreieck"
     },
     it: {
-      appTitle: "Creatore di Scene Minecraft",
+      appTitle: "Creatore di Scene",
       languageLabel: "Lingua",
       toggleTheme: "Cambia tema",
       lightMode: "Modalita Chiara",

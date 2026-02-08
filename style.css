@@ -1,3 +1,45 @@
+.topControls {
+    position: fixed;
+    top: 16px;
+    right: 12px;
+    z-index: 10001;
+    display: flex;
+    align-items: center;
+    gap: 10px;
+}
+
+.topControls .themeToggle,
+.topControls .languageToggle {
+    position: static;
+}
+
+.homeBackButton {
+    position: fixed;
+    top: 16px;
+    left: 12px;
+    z-index: 10001;
+    padding: 10px 16px;
+    border-radius: 12px;
+    background: linear-gradient(135deg, rgba(34, 197, 94, 0.9), rgba(16, 185, 129, 0.9));
+    color: #ffffff;
+    border: 1px solid rgba(15, 23, 42, 0.3);
+    text-decoration: none;
+    font-size: 12px;
+    font-weight: 700;
+    letter-spacing: 0.4px;
+    text-transform: uppercase;
+    box-shadow: 0 10px 22px rgba(0, 0, 0, 0.35);
+    transition: transform 0.2s ease, box-shadow 0.2s ease;
+}
+
+.homeBackButton:hover {
+    transform: translateY(-2px);
+    box-shadow: 0 14px 26px rgba(0, 0, 0, 0.45);
+}
+
+body.light .homeBackButton {
+    background: linear-gradient(135deg, rgba(22, 163, 74, 0.95), rgba(5, 150, 105, 0.95));
+}
 @import url('https://fonts.googleapis.com/css2?family=Press+Start+2P&family=Space+Grotesk:wght@400;500;600;700&display=swap');
 .appTitle {
     text-align: center;
@@ -37,6 +79,200 @@ body.light .appTitle {
         2px 2px 0 #e5e7eb,
         -2px 2px 0 #e5e7eb,
         0 12px 20px rgba(15, 23, 42, 0.15);
+}
+
+.homeLayout {
+    position: relative;
+    min-height: 100vh;
+    padding: 80px 7vw 60px;
+    overflow-y: auto;
+    display: flex;
+    flex-direction: column;
+    gap: 40px;
+    z-index: 1;
+}
+
+.homeBackdrop {
+    position: fixed;
+    inset: -20% 0 0 0;
+    background:
+        radial-gradient(600px 300px at 10% 10%, rgba(34, 197, 94, 0.35), transparent),
+        radial-gradient(800px 500px at 90% 20%, rgba(59, 130, 246, 0.35), transparent),
+        radial-gradient(600px 400px at 40% 90%, rgba(251, 146, 60, 0.3), transparent);
+    filter: blur(0px);
+    z-index: 0;
+    pointer-events: none;
+}
+
+.homeHero {
+    position: relative;
+    z-index: 1;
+    max-width: 900px;
+    display: flex;
+    flex-direction: column;
+    gap: 18px;
+}
+
+.homeBadge {
+    display: inline-flex;
+    align-items: center;
+    gap: 10px;
+    padding: 8px 14px;
+    border-radius: 999px;
+    background: rgba(15, 23, 42, 0.65);
+    border: 1px solid rgba(148, 163, 184, 0.4);
+    font-size: 12px;
+    font-weight: 600;
+    text-transform: uppercase;
+    letter-spacing: 1px;
+    width: fit-content;
+}
+
+.homeTitle {
+    font-family: 'Press Start 2P', 'Trebuchet MS', sans-serif;
+    font-size: clamp(2.4rem, 4.4vw, 4.2rem);
+    line-height: 1.3;
+    margin: 0;
+    color: #e2f9e2;
+    text-shadow:
+        0 2px 0 #1f3b1f,
+        2px 2px 0 #0f1b0f,
+        0 10px 18px rgba(0, 0, 0, 0.45);
+}
+
+.homeSubtitle {
+    margin: 0;
+    font-size: 1.1rem;
+    line-height: 1.7;
+    color: rgba(226, 232, 240, 0.85);
+    max-width: 640px;
+}
+
+.homeCta {
+    display: flex;
+    align-items: center;
+    flex-wrap: wrap;
+    gap: 16px;
+}
+
+.homeHint {
+    font-size: 0.95rem;
+    color: rgba(226, 232, 240, 0.65);
+}
+
+.homeGrid {
+    position: relative;
+    z-index: 1;
+    display: grid;
+    grid-template-columns: repeat(auto-fit, minmax(220px, 1fr));
+    gap: 22px;
+}
+
+.homeCard {
+    position: relative;
+    padding: 20px 20px 22px;
+    border-radius: 16px;
+    background: rgba(15, 23, 42, 0.72);
+    border: 1px solid rgba(148, 163, 184, 0.2);
+    text-decoration: none;
+    color: inherit;
+    display: flex;
+    flex-direction: column;
+    gap: 12px;
+    box-shadow: 0 18px 30px rgba(6, 10, 20, 0.35);
+    transition: transform 0.2s ease, box-shadow 0.2s ease, border-color 0.2s ease;
+}
+
+.homeCard:hover {
+    transform: translateY(-6px);
+    box-shadow: 0 22px 40px rgba(6, 10, 20, 0.45);
+    border-color: rgba(148, 163, 184, 0.45);
+}
+
+.homeCard--live {
+    border-color: rgba(34, 197, 94, 0.5);
+    background: linear-gradient(160deg, rgba(34, 197, 94, 0.15), rgba(15, 23, 42, 0.85));
+}
+
+.homeCard--soon {
+    opacity: 0.8;
+}
+
+.homeCardMeta {
+    font-size: 12px;
+    font-weight: 600;
+    text-transform: uppercase;
+    letter-spacing: 1px;
+    color: rgba(226, 232, 240, 0.6);
+}
+
+.homeCardTitle {
+    margin: 0;
+    font-size: 1.25rem;
+}
+
+.homeCardDesc {
+    margin: 0;
+    color: rgba(226, 232, 240, 0.75);
+    line-height: 1.6;
+}
+
+.homeFooter {
+    position: relative;
+    z-index: 1;
+    color: rgba(226, 232, 240, 0.55);
+    font-size: 0.95rem;
+}
+
+
+
+body.light .homeBackdrop {
+    background:
+        radial-gradient(600px 300px at 10% 10%, rgba(34, 197, 94, 0.25), transparent),
+        radial-gradient(800px 500px at 90% 20%, rgba(59, 130, 246, 0.25), transparent),
+        radial-gradient(600px 400px at 40% 90%, rgba(251, 146, 60, 0.2), transparent);
+}
+
+body.light .homeBadge {
+    background: rgba(15, 23, 42, 0.9);
+}
+
+body.light .homeTitle {
+    color: #0f172a;
+    text-shadow: none;
+}
+
+body.light .homeSubtitle,
+body.light .homeHint,
+body.light .homeCardDesc,
+body.light .homeCardMeta,
+body.light .homeFooter {
+    color: rgba(15, 23, 42, 0.7);
+}
+
+body.light .homeCard {
+    background: rgba(255, 255, 255, 0.92);
+    border-color: rgba(15, 23, 42, 0.15);
+}
+
+body.light .homeCard--live {
+    border-color: rgba(34, 197, 94, 0.5);
+    background: linear-gradient(160deg, rgba(34, 197, 94, 0.15), rgba(255, 255, 255, 0.95));
+}
+
+@media (max-width: 720px) {
+    .homeLayout {
+        padding: 60px 6vw 50px;
+    }
+
+    .homeTitle {
+        font-size: 2rem;
+    }
+
+    .homeCta {
+        flex-direction: column;
+        align-items: flex-start;
+    }
 }
 
 
@@ -278,10 +514,7 @@ body.light .skinPreview {
 }
 
 .themeToggle {
-    position: fixed !important;
-    top: 16px;
-    right: 12px;
-    z-index: 10001;
+    position: static;
     padding: 6px 10px;
     border-radius: 6px;
     background: #1e293b;
@@ -295,10 +528,7 @@ body.light .skinPreview {
 }
 
 .languageToggle {
-    position: fixed;
-    top: 16px;
-    left: 12px;
-    z-index: 10001;
+    position: static;
     display: flex;
     align-items: center;
     gap: 8px;
@@ -338,7 +568,7 @@ body.light .themeToggle {
     background: #0f172a;
     color: white;
     border-color: rgba(15, 23, 42, 0.2);
-    position: fixed;
+    position: static;
 }
 
 body.light .languageToggle {
