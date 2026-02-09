@@ -57,6 +57,26 @@ body.light .homeBackButton {
     white-space: nowrap;
 }
 
+.appHeader {
+    display: flex;
+    align-items: center;
+    justify-content: center;
+    gap: 18px;
+    margin: 18px 0 12px;
+}
+
+.appHeader .appTitle {
+    margin: 0;
+    text-align: left;
+}
+
+.appLogo {
+    width: 72px;
+    height: 72px;
+    object-fit: contain;
+    filter: drop-shadow(0 8px 14px rgba(0, 0, 0, 0.35));
+}
+
 body {
     background: radial-gradient(1100px 600px at 18% -12%, rgba(59, 130, 246, 0.28), transparent),
         radial-gradient(900px 520px at 92% 110%, rgba(249, 115, 22, 0.22), transparent),
@@ -81,14 +101,18 @@ body.light .appTitle {
         0 12px 20px rgba(15, 23, 42, 0.15);
 }
 
+body.light .appLogo {
+    filter: drop-shadow(0 10px 16px rgba(15, 23, 42, 0.2));
+}
+
 .homeLayout {
     position: relative;
     min-height: 100vh;
-    padding: 80px 7vw 60px;
+    padding: 32px 7vw 40px;
     overflow-y: auto;
     display: flex;
     flex-direction: column;
-    gap: 40px;
+    gap: 18px;
     z-index: 1;
 }
 
@@ -107,10 +131,29 @@ body.light .appTitle {
 .homeHero {
     position: relative;
     z-index: 1;
-    max-width: 900px;
+    max-width: 1200px;
+    display: flex;
+    flex-direction: row;
+    align-items: center;
+    gap: 18px;
+    flex-wrap: nowrap;
+}
+
+.homeLogo {
+    order: 0;
+    width: clamp(220px, 26vw, 420px);
+    height: clamp(220px, 26vw, 420px);
+    object-fit: contain;
+    filter: drop-shadow(0 10px 18px rgba(0, 0, 0, 0.35));
+    flex: 0 0 auto;
+}
+
+.homeHeroText {
+    order: 1;
     display: flex;
     flex-direction: column;
     gap: 18px;
+    min-width: 0;
 }
 
 .homeBadge {
@@ -145,7 +188,7 @@ body.light .appTitle {
     font-size: 1.1rem;
     line-height: 1.7;
     color: rgba(226, 232, 240, 0.85);
-    max-width: 640px;
+    max-width: 520px;
 }
 
 .homeCta {
@@ -209,12 +252,42 @@ body.light .appTitle {
 .homeCardTitle {
     margin: 0;
     font-size: 1.25rem;
+    display: inline-flex;
+    align-items: center;
+    gap: 10px;
+}
+
+.homeCardIcon {
+    width: 28px;
+    height: 28px;
+    object-fit: contain;
+    filter: drop-shadow(0 2px 6px rgba(0, 0, 0, 0.35));
+}
+
+.homeCardBadgeIcon {
+    width: 240px;
+    height: 240px;
+    object-fit: contain;
+    align-self: flex-start;
+    filter: drop-shadow(0 6px 10px rgba(0, 0, 0, 0.35));
 }
 
 .homeCardDesc {
     margin: 0;
     color: rgba(226, 232, 240, 0.75);
     line-height: 1.6;
+}
+
+.exportToolbar {
+    display: inline-flex;
+    align-items: center;
+    gap: 10px;
+}
+
+.btnIcon {
+    width: 20px;
+    height: 20px;
+    object-fit: contain;
 }
 
 .homeFooter {
@@ -275,6 +348,18 @@ body.light .homeCard--live {
         padding: 60px 6vw 50px;
     }
 
+    .homeHero {
+        flex-direction: row;
+        align-items: center;
+        flex-wrap: nowrap;
+        gap: 20px;
+    }
+
+    .homeLogo {
+        width: 160px;
+        height: 160px;
+    }
+
     .homeTitle {
         font-size: 2rem;
     }
@@ -282,6 +367,16 @@ body.light .homeCard--live {
     .homeCta {
         flex-direction: column;
         align-items: flex-start;
+    }
+
+    .appHeader {
+        flex-direction: column;
+        gap: 12px;
+        text-align: center;
+    }
+
+    .appHeader .appTitle {
+        text-align: center;
     }
 }
 
@@ -1259,6 +1354,7 @@ body.light #characterContextMenu button:hover {
 
 .shapeSelect.selected {
     border-color: #22c55e;
+    box-shadow: 0 0 0 2px rgba(34, 197, 94, 0.35);
 }
 
 .brushLabel {
@@ -1360,12 +1456,46 @@ body.light #characterContextMenu button:hover {
     height: 24px;
 }
 
+.toolbar .toolTextIcon {
+    font-family: 'Press Start 2P', 'Trebuchet MS', sans-serif;
+    font-size: 18px;
+    font-weight: 800;
+    line-height: 1;
+    color: #0f172a;
+}
+
+.toolbar .textControl {
+    display: flex;
+    align-items: center;
+    gap: 8px;
+}
+
+.canvasTextEditor {
+    position: absolute;
+    z-index: 4;
+    min-width: 40px;
+    min-height: 20px;
+    padding: 2px 4px;
+    border: 1px dashed rgba(255, 255, 255, 0.6);
+    border-radius: 4px;
+    background: rgba(255, 255, 255, 0.12);
+    outline: none;
+    color: #ffffff;
+    cursor: text;
+    text-shadow: 0 1px 2px rgba(0, 0, 0, 0.6);
+}
+
 .toolbar button:hover {
     background: #f1f5f9;
 }
 
 .toolbar button.selected {
-    border: 2px solid green;
+    border: 2px solid #16a34a;
+    background: linear-gradient(135deg, #22c55e, #86efac);
+    color: #0f172a;
+    outline: 2px solid rgba(15, 23, 42, 0.6);
+    box-shadow: 0 0 0 2px rgba(34, 197, 94, 0.35), 0 8px 18px rgba(15, 23, 42, 0.35);
+    transform: translateY(-1px) scale(1.04);
 }
 
 .toolbar input[type="color"] {

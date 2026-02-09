@@ -51,17 +51,30 @@ export default function App() {
           </div>
         </div>
         <header className="homeHero">
-          <h1 className="homeTitle" data-i18n="homeTitle">Minecraft Creator Studio</h1>
-          <p className="homeSubtitle" data-i18n="homeSubtitle">
-            A growing toolbox for Minecraft creators: scene builder, skin editor,
-            pose library, and more.
-          </p>
+          <img
+            className="homeLogo"
+            src="/icons/website_logo.png"
+            alt="Minecraft Creator Studio logo"
+          />
+          <div className="homeHeroText">
+            <h1 className="homeTitle" data-i18n="homeTitle">Minecraft Creator Studio</h1>
+            <p className="homeSubtitle" data-i18n="homeSubtitle">
+              A growing toolbox for Minecraft creators: scene builder, skin editor,
+              pose library, and more.
+            </p>
+          </div>
         </header>
 
         <section className="homeGrid">
           <a className="homeCard homeCard--live" href={buildAppUrl("scene")}>
             <div className="homeCardMeta" data-i18n="homeAvailable">Available now</div>
             <h2 className="homeCardTitle" data-i18n="homeSceneTitle">Scene Creator</h2>
+            <img
+              className="homeCardBadgeIcon"
+              src="/icons/scene_creator_icon.png"
+              alt=""
+              aria-hidden="true"
+            />
             <p className="homeCardDesc" data-i18n="homeSceneDesc">
               Pose characters, craft backgrounds, and export shareable renders.
             </p>
@@ -69,6 +82,12 @@ export default function App() {
           <a className="homeCard homeCard--soon" href={buildAppUrl("skin")}>
             <div className="homeCardMeta" data-i18n="homeComingSoon">Coming soon</div>
             <h2 className="homeCardTitle" data-i18n="homeSkinTitle">Skin Editor</h2>
+            <img
+              className="homeCardBadgeIcon"
+              src="/icons/skin_editor_icon.png"
+              alt=""
+              aria-hidden="true"
+            />
             <p className="homeCardDesc" data-i18n="homeSkinDesc">
               Paint, shade, and manage skins with a fast, modern workflow.
             </p>
@@ -89,12 +108,6 @@ export default function App() {
           </a>
         </section>
 
-        <footer className="homeFooter">
-          <span data-i18n="homeFooter">Build on your own pace. Everything lives under one studio.</span>
-        </footer>
-        <div className="homeCta">
-          <span className="homeHint" data-i18n="homeMoreTools">More tools are coming soon.</span>
-        </div>
         <div className="homeLegal">
           Minecraft is a trademark of Mojang Studios. This site is not affiliated with or
           endorsed by Mojang or Microsoft.
@@ -130,7 +143,14 @@ export default function App() {
           </select>
         </div>
       </div>
-      <h1 className="appTitle" data-i18n="appTitle">Scene Creator</h1>
+      <div className="appHeader">
+        <img
+          className="appLogo"
+          src="/icons/scene_creator_icon.png"
+          alt="Scene Creator icon"
+        />
+        <h1 className="appTitle" data-i18n="appTitle">Scene Creator</h1>
+      </div>
 
       <div className="toolbar">
         <button
@@ -165,6 +185,30 @@ export default function App() {
         >
           <img src="/icons/eraser_button.png" alt="" className="toolIcon" />
         </button>
+        <button
+          id="textBtn"
+          className="toolBtn toolBtn--text"
+          aria-label="Text"
+          title="Text"
+          data-i18n-aria="toolText"
+          data-i18n-title="toolText"
+        >
+          <span className="toolTextIcon">T</span>
+        </button>
+        <div className="textControl">
+          <label className="brushLabel" htmlFor="textSize" data-i18n="textSize">
+            Text Size
+          </label>
+          <input
+            type="range"
+            id="textSize"
+            min="8"
+            max="120"
+            defaultValue="36"
+            title="Text Size"
+            data-i18n-title="textSize"
+          />
+        </div>
         <div className="shapeControl">
           <button
             id="shapeBtn"
@@ -217,8 +261,23 @@ export default function App() {
           <img src="/icons/delete_all_button.png" alt="" className="toolIcon" />
         </button>
         <div className="toolbarSpacer"></div>
-        <button id="exportBtn" className="btnPrimary exportToolbar" data-i18n="exportScene">
-          Export Scene
+        <button id="exportBtn" className="btnPrimary exportToolbar">
+          <svg
+            className="btnIcon"
+            viewBox="0 0 24 24"
+            aria-hidden="true"
+            focusable="false"
+          >
+            <path
+              d="M12 4v10m0 0l4-4m-4 4l-4-4M5 18h14"
+              stroke="currentColor"
+              strokeWidth="2"
+              strokeLinecap="round"
+              strokeLinejoin="round"
+              fill="none"
+            />
+          </svg>
+          <span data-i18n="exportScene">Export Scene</span>
         </button>
       </div>
 

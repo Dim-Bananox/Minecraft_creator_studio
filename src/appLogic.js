@@ -38,10 +38,12 @@ export function initApp() {
   const penBtn = document.getElementById("penBtn");
   const lineBtn = document.getElementById("lineBtn");
   const eraserBtn = document.getElementById("eraserBtn");
+  const textBtn = document.getElementById("textBtn");
   const shapeBtn = document.getElementById("shapeBtn");
   const shapeSelect = document.getElementById("shapeSelect");
   const colorPicker = document.getElementById("colorPicker");
   const brushSize = document.getElementById("brushSize");
+  const textSize = document.getElementById("textSize");
   const clearCanvasBtn = document.getElementById("clearCanvasBtn");
 
   const drawCanvas = document.getElementById("drawCanvas");
@@ -76,6 +78,8 @@ export function initApp() {
   let isDrawing = false;
   let drawMode = ""; // 'pen' or 'eraser'
   let currentColor = "#000000";
+  let textMode = false;
+  let activeTextEditor = null;
 
   // Shape state
   let shapeMode = false;
@@ -103,8 +107,10 @@ export function initApp() {
       toolPen: "Pen",
       toolLine: "Line",
       toolEraser: "Eraser",
+      toolText: "Text",
       toolShape: "Shape",
       brushSize: "Brush Size",
+      textSize: "Text Size",
       clearCanvas: "Clear Canvas",
       exportScene: "Export Scene",
       mySkins: "My Skins",
@@ -153,7 +159,8 @@ export function initApp() {
       resize: "Resize",
       shapeRectangle: "Rectangle",
       shapeCircle: "Circle",
-      shapeTriangle: "Triangle"
+      shapeTriangle: "Triangle",
+      textPlaceholder: "Your text"
     },
     fr: {
       appTitle: "Createur de Scene",
@@ -164,8 +171,10 @@ export function initApp() {
       toolPen: "Stylo",
       toolLine: "Ligne",
       toolEraser: "Gomme",
+      toolText: "Texte",
       toolShape: "Forme",
       brushSize: "Taille du pinceau",
+      textSize: "Taille du texte",
       clearCanvas: "Effacer le canevas",
       exportScene: "Exporter la scene",
       mySkins: "Mes skins",
@@ -214,7 +223,8 @@ export function initApp() {
       resize: "Redimensionner",
       shapeRectangle: "Rectangle",
       shapeCircle: "Cercle",
-      shapeTriangle: "Triangle"
+      shapeTriangle: "Triangle",
+      textPlaceholder: "Votre texte"
     },
     es: {
       appTitle: "Creador de Escenas",
@@ -225,8 +235,10 @@ export function initApp() {
       toolPen: "Lapiz",
       toolLine: "Linea",
       toolEraser: "Borrador",
+      toolText: "Texto",
       toolShape: "Forma",
       brushSize: "Tamano del pincel",
+      textSize: "Tamano del texto",
       clearCanvas: "Borrar lienzo",
       exportScene: "Exportar escena",
       mySkins: "Mis skins",
@@ -275,7 +287,8 @@ export function initApp() {
       resize: "Redimensionar",
       shapeRectangle: "Rectangulo",
       shapeCircle: "Circulo",
-      shapeTriangle: "Triangulo"
+      shapeTriangle: "Triangulo",
+      textPlaceholder: "Tu texto"
     },
     de: {
       appTitle: "Szenenersteller",
@@ -286,8 +299,10 @@ export function initApp() {
       toolPen: "Stift",
       toolLine: "Linie",
       toolEraser: "Radierer",
+      toolText: "Text",
       toolShape: "Form",
       brushSize: "Pinselgroesse",
+      textSize: "Textgroesse",
       clearCanvas: "Leinwand leeren",
       exportScene: "Szene exportieren",
       mySkins: "Meine Skins",
@@ -336,7 +351,8 @@ export function initApp() {
       resize: "Groesse aendern",
       shapeRectangle: "Rechteck",
       shapeCircle: "Kreis",
-      shapeTriangle: "Dreieck"
+      shapeTriangle: "Dreieck",
+      textPlaceholder: "Dein Text"
     },
     it: {
       appTitle: "Creatore di Scene",
@@ -347,8 +363,10 @@ export function initApp() {
       toolPen: "Penna",
       toolLine: "Linea",
       toolEraser: "Gomma",
+      toolText: "Testo",
       toolShape: "Forma",
       brushSize: "Dimensione pennello",
+      textSize: "Dimensione testo",
       clearCanvas: "Pulisci tela",
       exportScene: "Esporta scena",
       mySkins: "I miei skin",
@@ -397,7 +415,8 @@ export function initApp() {
       resize: "Ridimensiona",
       shapeRectangle: "Rettangolo",
       shapeCircle: "Cerchio",
-      shapeTriangle: "Triangolo"
+      shapeTriangle: "Triangolo",
+      textPlaceholder: "Il tuo testo"
     }
   };
 
@@ -1403,6 +1422,127 @@ export function initApp() {
     if (shapeSelect) shapeSelect.classList.toggle("selected", active);
   };
 
+  const updateCanvasInteraction = () => {
+    const active = textMode || shapeMode || drawMode === "pen" || drawMode === "eraser";
+    drawCanvas.style.pointerEvents = active ? "auto" : "none";
+    if (textMode) {
+      if (brushCursor) brushCursor.style.display = "none";
+      drawCanvas.style.cursor = "text";
+    }
+  };
+
+  const updateTextEditorStyle = () => {
+    if (!activeTextEditor?.el) return;
+    const sizeValue = Number(textSize?.value || 36);
+    const fontSize = Math.max(8, Math.round(sizeValue));
+    activeTextEditor.el.style.fontSize = `${fontSize}px`;
+    activeTextEditor.el.style.color = currentColor;
+  };
+
+  const commitTextEdit = () => {
+    if (!activeTextEditor?.el) return;
+    const editor = activeTextEditor.el;
+    const text = (editor.innerText || "").replace(/\r/g, "").trim();
+    const { x, y } = activeTextEditor;
+    const sizeValue = Number(textSize?.value || 36);
+    const fontSize = Math.max(8, Math.round(sizeValue));
+
+    if (text) {
+      const lines = text.split("\n");
+      const lineHeight = Math.round(fontSize * 1.2);
+      drawCtx.save();
+      drawCtx.fillStyle = currentColor;
+      drawCtx.font = `bold ${fontSize}px "Space Grotesk", "Segoe UI", sans-serif`;
+      drawCtx.textBaseline = "top";
+      lines.forEach((line, index) => {
+        drawCtx.fillText(line, x, y + index * lineHeight);
+      });
+      drawCtx.restore();
+    }
+
+    editor.remove();
+    activeTextEditor = null;
+  };
+
+  const cancelTextEdit = () => {
+    if (!activeTextEditor?.el) return;
+    activeTextEditor.el.remove();
+    activeTextEditor = null;
+  };
+
+  const startTextEdit = e => {
+    if (e) {
+      e.preventDefault();
+      e.stopPropagation();
+    }
+    if (!renderArea) return;
+    if (activeTextEditor) commitTextEdit();
+
+    const coords = getCanvasCoordinates(e);
+    const rect = renderArea.getBoundingClientRect();
+    const left = e.clientX - rect.left;
+    const top = e.clientY - rect.top;
+
+    const editor = document.createElement("div");
+    editor.className = "canvasTextEditor";
+    editor.contentEditable = "true";
+    editor.style.left = `${left}px`;
+    editor.style.top = `${top}px`;
+    editor.style.fontFamily = '"Space Grotesk", "Segoe UI", sans-serif';
+    editor.style.fontWeight = "700";
+    editor.style.whiteSpace = "pre";
+    editor.style.minWidth = "40px";
+    editor.style.minHeight = "20px";
+    editor.spellcheck = false;
+
+    renderArea.appendChild(editor);
+    activeTextEditor = { el: editor, x: coords.x, y: coords.y };
+    updateTextEditorStyle();
+    requestAnimationFrame(() => editor.focus());
+
+    editor.addEventListener("mousedown", evt => {
+      evt.stopPropagation();
+    });
+
+    editor.addEventListener("keydown", evt => {
+      if (evt.key === "Enter" && !evt.shiftKey) {
+        evt.preventDefault();
+        commitTextEdit();
+      } else if (evt.key === "Escape") {
+        evt.preventDefault();
+        cancelTextEdit();
+      }
+    });
+
+    editor.addEventListener("blur", () => {
+      commitTextEdit();
+    });
+  };
+
+  const activateTextMode = () => {
+    if (shapeMode) deactivateShapeMode();
+    textMode = true;
+    drawMode = "";
+    drawCtx.globalCompositeOperation = "source-over";
+    drawCtx.fillStyle = currentColor;
+    if (textBtn) textBtn.classList.add("selected");
+    if (penBtn) penBtn.classList.remove("selected");
+    if (eraserBtn) eraserBtn.classList.remove("selected");
+    if (lineBtn) lineBtn.classList.remove("selected");
+    setShapeSelected(false);
+    selectCharacter(null);
+    updateCanvasInteraction();
+    updateBrushCursor();
+  };
+
+  const deactivateTextMode = () => {
+    textMode = false;
+    if (textBtn) textBtn.classList.remove("selected");
+    commitTextEdit();
+    updateCanvasInteraction();
+    updateBrushCursor();
+  };
+
   const activateShapeMode = () => {
     shapeMode = true;
     drawCanvas.style.pointerEvents = "auto";
@@ -1436,6 +1576,8 @@ export function initApp() {
 
   if (lineBtn) {
     lineBtn.onclick = () => {
+      if (textMode) deactivateTextMode();
+      cancelTextEdit();
       if (shapeMode && shapeType === "line") {
         deactivateShapeMode();
       } else {
@@ -1452,28 +1594,30 @@ export function initApp() {
         drawMode = "";
         selectCharacter(null);
       }
+      updateCanvasInteraction();
     };
   }
 
   if (penBtn) {
     penBtn.onclick = () => {
+      if (textMode) deactivateTextMode();
+      cancelTextEdit();
       if (drawMode === "pen") {
         // If pen is already active, toggle it off
         drawMode = "";
-        drawCanvas.style.pointerEvents = "none";
         penBtn.classList.remove("selected");
       } else {
         // Activate pen mode
         // Disable shape mode when switching to pen
         if (shapeMode) deactivateShapeMode();
         drawMode = "pen";
-        drawCanvas.style.pointerEvents = "auto";
         drawCtx.globalCompositeOperation = "source-over";
         penBtn.classList.add("selected");
         if (eraserBtn) eraserBtn.classList.remove("selected");
         // Deselect character to avoid interference
         selectCharacter(null);
       }
+      updateCanvasInteraction();
       updateBrushCursor();
     };
   }
@@ -1489,25 +1633,28 @@ export function initApp() {
 
   if (eraserBtn) {
     eraserBtn.onclick = () => {
+      if (textMode) deactivateTextMode();
+      cancelTextEdit();
       if (drawMode === "eraser") {
         drawMode = "";
-        drawCanvas.style.pointerEvents = "none";
         eraserBtn.classList.remove("selected");
       } else {
         // Disable shape mode when switching to eraser
         if (shapeMode) deactivateShapeMode();
         drawMode = "eraser";
-        drawCanvas.style.pointerEvents = "auto";
         drawCtx.globalCompositeOperation = "destination-out";
         eraserBtn.classList.add("selected");
         if (penBtn) penBtn.classList.remove("selected");
       }
+      updateCanvasInteraction();
       updateBrushCursor();
     };
   }
 
   if (shapeBtn) {
     shapeBtn.onclick = () => {
+      if (textMode) deactivateTextMode();
+      cancelTextEdit();
       if (shapeMode) {
         // If shape mode is active, toggle it off
         deactivateShapeMode();
@@ -1517,6 +1664,17 @@ export function initApp() {
         if (shapeSelect) shapeType = shapeSelect.value;
         if (shapeSelect) shapeSelect.focus();
       }
+      updateCanvasInteraction();
+    };
+  }
+
+  if (textBtn) {
+    textBtn.onclick = () => {
+      if (textMode) {
+        deactivateTextMode();
+      } else {
+        activateTextMode();
+      }
     };
   }
 
@@ -1525,6 +1683,7 @@ export function initApp() {
       currentColor = e.target.value;
       drawCtx.strokeStyle = currentColor;
       drawCtx.fillStyle = currentColor;
+      updateTextEditorStyle();
     };
   }
 
@@ -1532,6 +1691,12 @@ export function initApp() {
     brushSize.oninput = e => {
       drawCtx.lineWidth = e.target.value;
       updateBrushCursor();
+    };
+  }
+
+  if (textSize) {
+    textSize.oninput = () => {
+      updateTextEditorStyle();
     };
   }
 
@@ -1564,6 +1729,10 @@ export function initApp() {
   });
 
   function startDrawing(e) {
+    if (textMode) {
+      startTextEdit(e);
+      return;
+    }
     const coords = getCanvasCoordinates(e);
     if (shapeMode) {
       shapeStart = { x: coords.x, y: coords.y };
@@ -1639,6 +1808,11 @@ export function initApp() {
   }
 
   function updateBrushCursor() {
+    if (textMode) {
+      if (brushCursor) brushCursor.style.display = "none";
+      drawCanvas.style.cursor = "text";
+      return;
+    }
     if (drawMode === "pen" || drawMode === "eraser" || (shapeMode && shapeType === "line")) {
       const baseSize = drawCtx.lineWidth;
       const rect = drawCanvas.getBoundingClientRect();
@@ -1661,6 +1835,7 @@ export function initApp() {
       drawCanvas.style.cursor = "default";
     }
   }
+
 
   function updateCursor(e) {
     updateBrushCursor();
