@@ -261,14 +261,6 @@ export default function App() {
           <img src="/icons/delete_all_button.png" alt="" className="toolIcon" />
         </button>
         <div className="toolbarSpacer"></div>
-        <button
-          id="addCharacter"
-          className="toolBtn toolBtn--wide"
-          title="Add Character"
-          data-i18n-title="addCharacter"
-        >
-          <span data-i18n="addCharacter">Add Character</span>
-        </button>
         <button id="exportBtn" className="btnPrimary exportToolbar">
           <svg
             className="btnIcon"
@@ -326,6 +318,16 @@ export default function App() {
           </div>
 
           <div className="panelSection">
+            <button
+              id="addCharacterLeft"
+              className="btnPrimary addCharLeftBtn"
+              data-i18n="addCharacter"
+            >
+              Add Character
+            </button>
+          </div>
+
+          <div className="panelSection">
             <h3 data-i18n="layers">Layers</h3>
             <button id="clearLayersBtn" className="btnGhost" data-i18n="clearLayers">
               Clear Layers
@@ -361,6 +363,28 @@ export default function App() {
           <div className="panel-right">
             <div className="panelSection">
               <div id="characterName" style={characterNameStyle}></div>
+            </div>
+
+            <div className="panelSection collapsible" data-section="position">
+              <button className="sectionToggle" type="button">
+                <span data-i18n="position">Position</span>
+                <span className="chev">▾</span>
+              </button>
+              <div className="sectionContent">
+                <div className="positionControls">
+                  <div className="posField">
+                    <label htmlFor="charPosX">X</label>
+                    <input type="number" id="charPosX" defaultValue="0" />
+                  </div>
+                  <div className="posField">
+                    <label htmlFor="charPosY">Y</label>
+                    <input type="number" id="charPosY" defaultValue="0" />
+                  </div>
+                  <button className="reset" data-part="position">
+                    <span data-i18n="resetPosition">Reset Position</span>
+                  </button>
+                </div>
+              </div>
             </div>
 
             <div className="panelSection collapsible" data-section="head">

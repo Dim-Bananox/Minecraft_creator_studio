@@ -69,6 +69,7 @@ export function initApp() {
   let bgColor = bgColorPicker?.value || "#000000";
   let bgImage = null;
   let transparentMode = false;
+  let layerOrder = []; // Unified layer order [{type:"character"|"object", id}] bottom→top
 
   // Resize state
   let resizingChar = null;
@@ -99,6 +100,7 @@ export function initApp() {
   let sceneClipboard = null;
   let lastContextMenuPosition = null;
   let layerOrderCounter = 1;
+  let clickThroughHandled = false;
 
   // --- UNDO/REDO HISTORY ---
   const undoHistory = { states: [], index: -1, maxSize: 50, capturing: true };
@@ -230,7 +232,9 @@ export function initApp() {
       sceneLoaded: "Scene loaded.",
       overwrite: "Overwrite",
       undo: "Undo",
-      redo: "Redo"
+      redo: "Redo",
+      position: "Position",
+      resetPosition: "Reset Position"
     },
     fr: {
       appTitle: "Createur de Scene",
@@ -312,7 +316,9 @@ export function initApp() {
       sceneLoaded: "Scene chargee.",
       overwrite: "Ecraser",
       undo: "Annuler",
-      redo: "Retablir"
+      redo: "Retablir",
+      position: "Position",
+      resetPosition: "Reinitialiser la position"
     },
     es: {
       appTitle: "Creador de Escenas",
@@ -394,7 +400,9 @@ export function initApp() {
       sceneLoaded: "Escena cargada.",
       overwrite: "Sobrescribir",
       undo: "Deshacer",
-      redo: "Rehacer"
+      redo: "Rehacer",
+      position: "Posicion",
+      resetPosition: "Reiniciar posicion"
     },
     de: {
       appTitle: "Szenenersteller",
@@ -476,7 +484,9 @@ export function initApp() {
       sceneLoaded: "Szene geladen.",
       overwrite: "Ueberschreiben",
       undo: "Rueckgaengig",
-      redo: "Wiederherstellen"
+      redo: "Wiederherstellen",
+      position: "Position",
+      resetPosition: "Position zuruecksetzen"
     },
     it: {
       appTitle: "Creatore di Scene",
@@ -558,7 +568,9 @@ export function initApp() {
       sceneLoaded: "Scena caricata.",
       overwrite: "Sovrascrivere",
       undo: "Annulla",
-      redo: "Ripeti"
+      redo: "Ripeti",
+      position: "Posizione",
+      resetPosition: "Reimposta posizione"
     }
   };
 
@@ -985,13 +997,217 @@ export function initApp() {
     return characters.find(c => c.id === selectedCharacterId) || null;
   }
 
+  // --- Unified layer ordering ---
+  function syncLayerOrder() {
+    const existing = new Set(layerOrder.map(l => `${l.type}:${l.id}`));
+    // Add missing characters at the top
+    characters.forEach(c => {
+      if (!existing.has(`character:${c.id}`)) {
+        layerOrder.push({ type: "character", id: c.id });
+      }
+    });
+    // Add missing objects at the top
+    drawObjects.forEach(obj => {
+      if (!existing.has(`object:${obj.id}`)) {
+        layerOrder.push({ type: "object", id: obj.id });
+      }
+    });
+    // Remove entries for deleted items
+    layerOrder = layerOrder.filter(l => {
+      if (l.type === "character") return characters.some(c => c.id === l.id);
+      if (l.type === "object") return drawObjects.some(o => o.id === l.id);
+      return false;
+    });
+  }
+
+  function applyLayerZIndexes() {
+    const BASE_Z = 2;
+    let maxObjectZ = -1;
+    let maxZ = BASE_Z;
+
+    // Determine natural z-index for each layer
+    const naturalZ = new Map();
+    layerOrder.forEach((layer, idx) => {
+      const z = BASE_Z + idx + 1;
+      if (z > maxZ) maxZ = z;
+      naturalZ.set(`${layer.type}:${layer.id}`, z);
+      if (layer.type === "character") {
+        const ch = characters.find(c => c.id === layer.id);
+        if (ch && ch.wrapper) {
+          ch.wrapper.style.zIndex = z;
+          ch.wrapper.classList.remove("layer-boosted");
+        }
+      } else if (layer.type === "object") {
+        maxObjectZ = Math.max(maxObjectZ, z);
+      }
+    });
+
+    const canvasZ = maxObjectZ >= 0 ? maxObjectZ : BASE_Z;
+    if (drawCanvas) drawCanvas.style.zIndex = canvasZ;
+
+    // Helper to calculate screen bounds for objects
+    const getObjectScreenBounds = obj => {
+      const bounds = getObjectBoundsLocal(obj);
+      // Transform local bounds to screen space using obj transform
+      // Simple approximation: AABB of the rotated/scaled bounding box
+      const corners = [
+        { x: bounds.minX, y: bounds.minY },
+        { x: bounds.maxX, y: bounds.minY },
+        { x: bounds.maxX, y: bounds.maxY },
+        { x: bounds.minX, y: bounds.maxY }
+      ];
+      const rad = -(obj.rotation || 0); // Rotation in canvas is usually clockwise, here we need consistent math
+      const cos = Math.cos(obj.rotation || 0); // Canvas rotate is clockwise
+      const sin = Math.sin(obj.rotation || 0);
+      
+      const transformed = corners.map(p => {
+        // scale
+        const sx = p.x * (obj.scaleX || 1);
+        const sy = p.y * (obj.scaleY || 1);
+        // rotate
+        const rx = sx * cos - sy * sin;
+        const ry = sx * sin + sy * cos;
+        // translate
+        return {
+          x: rx + (obj.x || 0),
+          y: ry + (obj.y || 0)
+        };
+      });
+
+      const xs = transformed.map(p => p.x);
+      const ys = transformed.map(p => p.y);
+      return {
+        minX: Math.min(...xs),
+        maxX: Math.max(...xs),
+        minY: Math.min(...ys),
+        maxY: Math.max(...ys)
+      };
+    };
+
+    const isOverlapping = (rectA, rectB) => {
+      return (
+        rectA.minX < rectB.maxX &&
+        rectA.maxX > rectB.minX &&
+        rectA.minY < rectB.maxY &&
+        rectA.maxY > rectB.minY
+      );
+    };
+
+    const isLayerVisible = layer => {
+      if (layer.type === "character") {
+        const ch = characters.find(c => c.id === layer.id);
+        return !ch || ch.visible !== false;
+      }
+      if (layer.type === "object") {
+        const obj = drawObjects.find(o => o.id === layer.id);
+        return !obj || obj.visible !== false;
+      }
+      return true;
+    };
+
+    const hasVisibleVisualObstruction = (targetId, isCharacter) => {
+      // Get target bounds
+      let targetBounds;
+      if (isCharacter) {
+        const ch = characters.find(c => c.id === targetId);
+        if (!ch) return false;
+        // Character bounds approx from position/scale
+        // CSS: left:20px, top:20px, width:320px, height:420px -> Center is (180, 230)
+        const centerX = 180 + (ch._posX || 0);
+        const centerY = 230 + (ch._posY || 0);
+        const width = 180 * (ch.scale || 1);
+        const height = 320 * (ch.scale || 1);
+        targetBounds = {
+          minX: centerX - width / 2,
+          maxX: centerX + width / 2,
+          minY: centerY - height / 2,
+          maxY: centerY + height / 2
+        };
+      } else {
+        const obj = drawObjects.find(o => o.id === targetId);
+        if (!obj) return false;
+        targetBounds = getObjectScreenBounds(obj);
+      }
+
+      const layerKey = isCharacter ? `character:${targetId}` : `object:${targetId}`;
+      const idx = layerOrder.findIndex(l => `${l.type}:${l.id}` === layerKey);
+      if (idx < 0) return false;
+
+      // Check all layers ABOVE this one
+      for (let i = idx + 1; i < layerOrder.length; i += 1) {
+        const layer = layerOrder[i];
+        if (!isLayerVisible(layer)) continue;
+
+        let obstacleBounds;
+        if (layer.type === "character") {
+          const ch = characters.find(c => c.id === layer.id);
+          const centerX = 180 + (ch._posX || 0);
+          const centerY = 230 + (ch._posY || 0);
+          const width = 180 * (ch.scale || 1);
+          const height = 320 * (ch.scale || 1);
+          obstacleBounds = {
+            minX: centerX - width / 2,
+            maxX: centerX + width / 2,
+            minY: centerY - height / 2,
+            maxY: centerY + height / 2
+          };
+        } else {
+          const obj = drawObjects.find(o => o.id === layer.id);
+          obstacleBounds = getObjectScreenBounds(obj);
+        }
+
+        if (isOverlapping(targetBounds, obstacleBounds)) return true;
+      }
+      return false;
+    };
+
+    // Check if selected character needs boosting (only if visually obstructed by a visible layer above)
+    let charBoosted = false;
+    if (selectedCharacterId !== null) {
+      const sel = characters.find(c => c.id === selectedCharacterId);
+      if (sel && sel.wrapper && hasVisibleVisualObstruction(selectedCharacterId, true)) {
+        sel.wrapper.style.zIndex = maxZ + 10;
+        sel.wrapper.classList.add("layer-boosted");
+        charBoosted = true;
+      }
+    }
+
+    // Check if selected object needs boosting (only if visually obstructed by a visible character above)
+    if (selectedObjectId !== null && !charBoosted) {
+      // Objects are drawn on canvas, but we need to check if ANY character ABOVE in layer order obstructs this object
+      const isObstructed = hasVisibleVisualObstruction(selectedObjectId, false);
+      if (isObstructed && drawCanvas) {
+        drawCanvas.style.zIndex = maxZ + 10;
+        drawCanvas.classList.add("layer-boosted");
+      } else if (drawCanvas) {
+        drawCanvas.classList.remove("layer-boosted");
+      }
+    } else if (drawCanvas) {
+      drawCanvas.classList.remove("layer-boosted");
+    }
+
+    // Sync drawObjects array order to match layerOrder (for correct canvas paint order)
+    const objectOrder = layerOrder.filter(l => l.type === "object").map(l => l.id);
+    if (objectOrder.length > 0) {
+      const objMap = new Map(drawObjects.map(o => [o.id, o]));
+      const sorted = objectOrder.map(id => objMap.get(id)).filter(Boolean);
+      drawObjects.forEach(o => { if (!sorted.includes(o)) sorted.push(o); });
+      drawObjects.length = 0;
+      sorted.forEach(o => drawObjects.push(o));
+    }
+  }
+
   function renderLayersList() {
     const list = document.getElementById("layersList");
     if (!list) return;
     list.innerHTML = "";
 
+    // Sync and apply unified layer order
+    syncLayerOrder();
+    applyLayerZIndexes();
+
     const getObjectLabel = obj => {
-      if (obj.name) return obj.name; // Use custom name if set
+      if (obj.name) return obj.name;
       const idx = typeof obj._layerOrderIndex === "number" ? obj._layerOrderIndex : "";
       if (obj.type === "text") {
         const text = obj.text || "";
@@ -1003,57 +1219,26 @@ export function initApp() {
       return `Shape ${idx}`;
     };
 
-    const reorderInList = (type, fromId, toId, visualPosition) => {
-      const arr = type === "character" ? characters : drawObjects;
-      const listOrder = arr.slice().reverse();
-      const fromListIdx = listOrder.findIndex(item => item.id === fromId);
-      const toListIdx = listOrder.findIndex(item => item.id === toId);
-      if (fromListIdx < 0 || toListIdx < 0) return;
+    const reorderUnified = (fromType, fromId, toType, toId, visualPosition) => {
+      const fromIdx = layerOrder.findIndex(l => l.type === fromType && l.id === fromId);
+      const toIdx = layerOrder.findIndex(l => l.type === toType && l.id === toId);
+      if (fromIdx < 0 || toIdx < 0) return;
 
-      // "visualPosition" is relative to the TARGET item (toId) in list order (Top=0)
-      // If "above", we want to insert at toListIdx.
-      // If "below", we want to insert at toListIdx + 1.
-      
-      let targetListIdx = toListIdx;
-      if (visualPosition === "below") targetListIdx += 1;
+      const [moved] = layerOrder.splice(fromIdx, 1);
+      const newToIdx = layerOrder.findIndex(l => l.type === toType && l.id === toId);
+      // "above" in visual (top) = higher z = later in array = insert after target
+      // "below" in visual = lower z = earlier in array = insert at target
+      let insertIdx = newToIdx;
+      if (visualPosition === "above") insertIdx = newToIdx + 1;
+      layerOrder.splice(insertIdx, 0, moved);
 
-      // Now convert everything to array indices (Bottom=0)
-      // item at visual index i corresponds to array index (len - 1 - i)
-      
-      let fromArrIdx = arr.length - 1 - fromListIdx;
-      
-      // Calculate where we want to insert in array terms.
-      // Inserting at visual index K means the new item will be the Kth item from top.
-      // In array terms, it will be at index (len - 1 - K).
-      // However, splicing logic is tricky. 
-      
-      // Let's simplify: Remove the item first.
-      const [moved] = arr.splice(fromArrIdx, 1);
-      
-      // Now the array is shorter by 1.
-      // We need to find the array index of the "target slot".
-      // Let's re-calculate toListIdx based on the *original* list for reference? 
-      // No, let's use the ID.
-      
-      const newArr = arr;
-      // Find the index of the target object in the modified array
-      let newToListIdx = newArr.findIndex(item => item.id === toId);
-      
-      // visualPosition "above" (visual top) means AFTER in array (higher Z)
-      // visualPosition "below" (visual bottom) means BEFORE in array (lower Z)
-      
-      // If "above" (Top): we want to insert at newToListIdx + 1 (so it becomes higher Z than target)
-      // If "below" (Bottom): we want to insert at newToListIdx (so it becomes lower Z, pushing target up)
-
-      let insertIdx = newToListIdx;
-      if (visualPosition === "above") insertIdx = newToListIdx + 1;
-      
-      arr.splice(insertIdx, 0, moved);
-
-      if (type === "character") {
-        const ref = moved.wrapper?.parentNode || null;
-        // Re-append wrappers in order
-        if (ref) arr.forEach(ch => { if (ch.wrapper) ref.appendChild(ch.wrapper); });
+      applyLayerZIndexes();
+      // Re-append character wrappers in DOM order
+      const parent = renderArea;
+      if (parent) {
+        characters.forEach(ch => {
+          if (ch.wrapper && ch.wrapper.parentNode === parent) parent.appendChild(ch.wrapper);
+        });
       }
       renderObjects();
       renderLayersList();
@@ -1063,183 +1248,147 @@ export function initApp() {
       e.preventDefault();
       e.dataTransfer.dropEffect = "move";
     };
-    list.ondrop = e => {
-      e.preventDefault();
-      // Use the drop handler on items instead
-    };
+    list.ondrop = e => { e.preventDefault(); };
 
-    // List Logic Removed
+    // Unified list: iterate layerOrder reversed (top = highest z first)
+    layerOrder.slice().reverse().forEach(layer => {
+      if (layer.type === "character") {
+        const c = characters.find(ch => ch.id === layer.id);
+        if (!c) return;
 
+        const item = document.createElement("div");
+        item.className = "layerItem characterLayer";
+        item.dataset.layerType = "character";
+        item.dataset.layerId = c.id;
+        if (c.id === selectedCharacterId) item.classList.add("active");
+        item.draggable = true;
+        item.setAttribute("draggable", "true");
 
-    // 1. Characters (Top visual layer, DOM elements)
-    // Iterate reverse (Top first)
-    characters.slice().reverse().forEach(c => {
-      const item = document.createElement("div");
-      item.className = "layerItem characterLayer";
-      item.dataset.layerType = "character";
-      item.dataset.layerId = c.id;
-      if (c.id === selectedCharacterId) item.classList.add("active");
-      item.draggable = true;
-      item.setAttribute("draggable", "true");
-
-      const visBtn = document.createElement("button");
-      visBtn.className = "layerVisBtn";
-      visBtn.innerHTML = c.visible !== false ? "👁️" : "🚫";
-      visBtn.onclick = e => {
-        e.stopPropagation();
-        c.visible = c.visible === false; 
-        if (c.wrapper) c.wrapper.style.display = c.visible !== false ? "block" : "none";
-        renderLayersList();
-      };
-      
-      const label = document.createElement("span");
-      label.className = "layerLabel";
-      label.textContent = c.name;
-      label.onclick = () => {
-         selectCharacter(c.id); 
-         renderLayersList();
-      };
-      
-      label.ondblclick = e => {
-        e.stopPropagation();
-        const input = document.createElement("input");
-        input.type = "text";
-        input.value = c.name;
-        input.className = "layerRenameInput";
-        input.style.width = "100%";
-        
-        const save = () => {
-             const newName = input.value.trim();
-             if (newName) {
-                 c.name = newName;
-                 renderLayersList();
-             } else {
-                 label.textContent = c.name; // Revert
-             }
-             if (selectedCharacterId === c.id) {
-                 const nameDisplay = document.getElementById("characterName");
-                 if (nameDisplay) nameDisplay.textContent = c.name;
-             }
+        const visBtn = document.createElement("button");
+        visBtn.className = "layerVisBtn";
+        visBtn.innerHTML = c.visible !== false ? "👁️" : "🚫";
+        visBtn.onclick = e => {
+          e.stopPropagation();
+          c.visible = c.visible === false;
+          if (c.wrapper) c.wrapper.style.display = c.visible !== false ? "block" : "none";
+          renderLayersList();
         };
 
-        input.onblur = save;
-        input.onkeydown = k => {
-            if (k.key === "Enter") {
-                input.blur();
+        const label = document.createElement("span");
+        label.className = "layerLabel";
+        label.textContent = c.name;
+        label.onclick = () => { selectCharacter(c.id); renderLayersList(); };
+
+        label.ondblclick = e => {
+          e.stopPropagation();
+          const input = document.createElement("input");
+          input.type = "text";
+          input.value = c.name;
+          input.className = "layerRenameInput";
+          input.style.width = "100%";
+          const save = () => {
+            const newName = input.value.trim();
+            if (newName) { c.name = newName; renderLayersList(); }
+            else { label.textContent = c.name; }
+            if (selectedCharacterId === c.id) {
+              const nameDisplay = document.getElementById("characterName");
+              if (nameDisplay) nameDisplay.textContent = c.name;
             }
+          };
+          input.onblur = save;
+          input.onkeydown = k => { if (k.key === "Enter") input.blur(); };
+          label.textContent = "";
+          label.appendChild(input);
+          input.focus();
         };
-        
-        label.textContent = "";
-        label.appendChild(input);
-        input.focus();
-      };
 
         item.oncontextmenu = e => {
-        e.preventDefault();
-        selectCharacter(c.id);
+          e.preventDefault();
+          selectCharacter(c.id);
           openCharacterContextMenu(e.clientX, e.clientY, c.id);
-      };
+        };
 
-      const upBtn = document.createElement("button");
-      upBtn.className = "layerOrderBtn";
-      upBtn.innerHTML = "▲";
-      upBtn.onclick = e => {
-        e.stopPropagation();
-        const idx = characters.indexOf(c);
-        if (idx < characters.length - 1) {
-          [characters[idx], characters[idx+1]] = [characters[idx+1], characters[idx]];
-          if (c.wrapper && c.wrapper.parentNode) {
-            const p = c.wrapper.parentNode;
-            characters.forEach(ch => { if (ch.wrapper && ch.wrapper.parentNode === p) p.appendChild(ch.wrapper); });
+        const upBtn = document.createElement("button");
+        upBtn.className = "layerOrderBtn";
+        upBtn.innerHTML = "▲";
+        upBtn.onclick = e => {
+          e.stopPropagation();
+          const idx = layerOrder.findIndex(l => l.type === "character" && l.id === c.id);
+          if (idx < layerOrder.length - 1) {
+            [layerOrder[idx], layerOrder[idx + 1]] = [layerOrder[idx + 1], layerOrder[idx]];
+            applyLayerZIndexes();
+            const parent = renderArea;
+            if (parent) characters.forEach(ch => { if (ch.wrapper && ch.wrapper.parentNode === parent) parent.appendChild(ch.wrapper); });
+            renderObjects();
+            renderLayersList();
           }
+        };
+
+        const downBtn = document.createElement("button");
+        downBtn.className = "layerOrderBtn";
+        downBtn.innerHTML = "▼";
+        downBtn.onclick = e => {
+          e.stopPropagation();
+          const idx = layerOrder.findIndex(l => l.type === "character" && l.id === c.id);
+          if (idx > 0) {
+            [layerOrder[idx], layerOrder[idx - 1]] = [layerOrder[idx - 1], layerOrder[idx]];
+            applyLayerZIndexes();
+            const parent = renderArea;
+            if (parent) characters.forEach(ch => { if (ch.wrapper && ch.wrapper.parentNode === parent) parent.appendChild(ch.wrapper); });
+            renderObjects();
+            renderLayersList();
+          }
+        };
+
+        const delBtn = document.createElement("button");
+        delBtn.className = "layerDelBtn";
+        delBtn.textContent = "✕";
+        delBtn.onclick = e => {
+          e.stopPropagation();
+          if (c.wrapper) c.wrapper.remove();
+          characters = characters.filter(ch => ch.id !== c.id);
+          if (selectedCharacterId === c.id) selectCharacter(null);
           renderLayersList();
-        }
-      };
+        };
 
-      const downBtn = document.createElement("button");
-      downBtn.className = "layerOrderBtn";
-      downBtn.innerHTML = "▼";
-      downBtn.onclick = e => {
-         e.stopPropagation();
-         const idx = characters.indexOf(c);
-         if (idx > 0) {
-           [characters[idx], characters[idx-1]] = [characters[idx-1], characters[idx]];
-           if (c.wrapper && c.wrapper.parentNode) {
-            const p = c.wrapper.parentNode;
-            characters.forEach(ch => { if (ch.wrapper && ch.wrapper.parentNode === p) p.appendChild(ch.wrapper); });
-           }
-           renderLayersList();
-         }
-      };
-      
-      const delBtn = document.createElement("button");
-      delBtn.className = "layerDelBtn";
-      delBtn.textContent = "✕";
-      delBtn.onclick = e => {
-        e.stopPropagation();
-        if (c.wrapper) c.wrapper.remove();
-        characters = characters.filter(ch => ch.id !== c.id);
-        if (selectedCharacterId === c.id) selectCharacter(null);
-        renderLayersList();
-      };
+        item.ondragstart = e => {
+          e.dataTransfer.effectAllowed = "move";
+          e.dataTransfer.setData("text/plain", JSON.stringify({ type: "character", id: c.id }));
+        };
+        item.ondragover = e => {
+          e.preventDefault(); e.stopPropagation();
+          e.dataTransfer.dropEffect = "move";
+          const rect = item.getBoundingClientRect();
+          if (e.clientY - rect.top < rect.height / 2) { item.classList.add("drop-target-top"); item.classList.remove("drop-target-bottom"); }
+          else { item.classList.add("drop-target-bottom"); item.classList.remove("drop-target-top"); }
+        };
+        item.ondragleave = () => { item.classList.remove("drop-target-top", "drop-target-bottom"); };
+        item.ondrop = e => {
+          e.preventDefault(); e.stopPropagation();
+          const position = item.classList.contains("drop-target-top") ? "above" : "below";
+          item.classList.remove("drop-target-top", "drop-target-bottom");
+          try {
+            const d = JSON.parse(e.dataTransfer.getData("text/plain"));
+            if (d.type && d.id) reorderUnified(d.type, d.id, "character", c.id, position);
+          } catch (err) {}
+        };
 
-      // Simple Drag
-      item.ondragstart = e => {
-        e.dataTransfer.effectAllowed = "move";
-        const payload = JSON.stringify({type:"character", id: c.id});
-        e.dataTransfer.setData("text/plain", payload);
-        e.dataTransfer.setData("text", payload);
-      };
-      
-      item.ondragover = e => {
-        e.preventDefault();
-        e.stopPropagation();
-        e.dataTransfer.dropEffect = "move";
-        const rect = item.getBoundingClientRect();
-        const relY = e.clientY - rect.top;
-        if (relY < rect.height / 2) {
-          item.classList.add("drop-target-top");
-          item.classList.remove("drop-target-bottom");
-        } else {
-          item.classList.add("drop-target-bottom");
-          item.classList.remove("drop-target-top");
-        }
-      };
-      
-      item.ondragleave = () => {
-        item.classList.remove("drop-target-top", "drop-target-bottom");
-      };
+        item.appendChild(visBtn);
+        item.appendChild(label);
+        item.appendChild(upBtn);
+        item.appendChild(downBtn);
+        item.appendChild(delBtn);
+        item.querySelectorAll("button, span").forEach(el => el.setAttribute("draggable", "false"));
+        list.appendChild(item);
 
-      item.ondrop = e => {
-        e.preventDefault();
-        e.stopPropagation();
-        const position = item.classList.contains("drop-target-top") ? "above" : "below";
-        item.classList.remove("drop-target-top", "drop-target-bottom");
-        
-        try {
-          const raw = e.dataTransfer.getData("text/plain") || e.dataTransfer.getData("text");
-          const d = JSON.parse(raw);
-          if (d.type === "character" && d.id) {
-             reorderInList("character", d.id, c.id, position);
-          }
-        } catch(err) {}
-      };
+      } else if (layer.type === "object") {
+        const obj = drawObjects.find(o => o.id === layer.id);
+        if (!obj) return;
 
-      item.appendChild(visBtn);
-      item.appendChild(label);
-      item.appendChild(upBtn);
-      item.appendChild(downBtn);
-      item.appendChild(delBtn);
-      item.querySelectorAll("button, span").forEach(el => el.setAttribute("draggable", "false"));
-      list.appendChild(item);
-    });
-
-    // 2. Objects
-    drawObjects.slice().reverse().forEach(obj => {
         const item = document.createElement("div");
         item.className = "layerItem objectLayer";
-      item.dataset.layerType = "object";
-      item.dataset.layerId = obj.id;
+        item.dataset.layerType = "object";
+        item.dataset.layerId = obj.id;
         if (obj.id === selectedObjectId) item.classList.add("active");
         item.draggable = true;
         item.setAttribute("draggable", "true");
@@ -1253,42 +1402,30 @@ export function initApp() {
           renderObjects();
           renderLayersList();
         };
-        
+
         const label = document.createElement("span");
         label.className = "layerLabel";
         label.textContent = getObjectLabel(obj);
         label.onclick = () => { selectObject(obj.id); renderLayersList(); };
 
         label.ondblclick = e => {
-            e.stopPropagation();
-            const currentName = obj.name || getObjectLabel(obj);
-            const input = document.createElement("input");
-            input.type = "text";
-            input.value = currentName;
-            input.className = "layerRenameInput";
-            input.style.width = "100%";
-            
-            const save = () => {
-                 const newName = input.value.trim();
-                 if (newName) {
-                     obj.name = newName;
-                     renderLayersList();
-                     saveSceneObjects();
-                 } else {
-                     label.textContent = getObjectLabel(obj); 
-                 }
-            };
-    
-            input.onblur = save;
-            input.onkeydown = k => {
-                if (k.key === "Enter") {
-                    input.blur();
-                }
-            };
-            
-            label.textContent = "";
-            label.appendChild(input);
-            input.focus();
+          e.stopPropagation();
+          const currentName = obj.name || getObjectLabel(obj);
+          const input = document.createElement("input");
+          input.type = "text";
+          input.value = currentName;
+          input.className = "layerRenameInput";
+          input.style.width = "100%";
+          const save = () => {
+            const newName = input.value.trim();
+            if (newName) { obj.name = newName; renderLayersList(); saveSceneObjects(); }
+            else { label.textContent = getObjectLabel(obj); }
+          };
+          input.onblur = save;
+          input.onkeydown = k => { if (k.key === "Enter") input.blur(); };
+          label.textContent = "";
+          label.appendChild(input);
+          input.focus();
         };
 
         item.oncontextmenu = e => {
@@ -1296,15 +1433,16 @@ export function initApp() {
           selectObject(obj.id);
           openObjectContextMenu(e.clientX, e.clientY);
         };
-        
+
         const upBtn = document.createElement("button");
         upBtn.className = "layerOrderBtn";
         upBtn.innerHTML = "▲";
         upBtn.onclick = e => {
           e.stopPropagation();
-          const idx = drawObjects.indexOf(obj);
-          if (idx < drawObjects.length - 1) {
-            [drawObjects[idx], drawObjects[idx+1]] = [drawObjects[idx+1], drawObjects[idx]];
+          const idx = layerOrder.findIndex(l => l.type === "object" && l.id === obj.id);
+          if (idx < layerOrder.length - 1) {
+            [layerOrder[idx], layerOrder[idx + 1]] = [layerOrder[idx + 1], layerOrder[idx]];
+            applyLayerZIndexes();
             renderObjects();
             renderLayersList();
           }
@@ -1314,66 +1452,47 @@ export function initApp() {
         downBtn.className = "layerOrderBtn";
         downBtn.innerHTML = "▼";
         downBtn.onclick = e => {
-           e.stopPropagation();
-           const idx = drawObjects.indexOf(obj);
-           if (idx > 0) {
-             [drawObjects[idx], drawObjects[idx-1]] = [drawObjects[idx-1], drawObjects[idx]];
-             renderObjects();
-             renderLayersList();
-           }
+          e.stopPropagation();
+          const idx = layerOrder.findIndex(l => l.type === "object" && l.id === obj.id);
+          if (idx > 0) {
+            [layerOrder[idx], layerOrder[idx - 1]] = [layerOrder[idx - 1], layerOrder[idx]];
+            applyLayerZIndexes();
+            renderObjects();
+            renderLayersList();
+          }
         };
-        
+
         const delBtn = document.createElement("button");
         delBtn.className = "layerDelBtn";
         delBtn.textContent = "✕";
         delBtn.onclick = e => {
-           e.stopPropagation();
-           drawObjects = drawObjects.filter(x => x.id !== obj.id);
-           if (selectedObjectId === obj.id) selectObject(null);
-           renderObjects();
-           renderLayersList();
+          e.stopPropagation();
+          drawObjects = drawObjects.filter(x => x.id !== obj.id);
+          if (selectedObjectId === obj.id) selectObject(null);
+          renderObjects();
+          renderLayersList();
         };
 
-        // Simple Drag
         item.ondragstart = e => {
           e.dataTransfer.effectAllowed = "move";
-          const payload = JSON.stringify({type:"object", id: obj.id});
-          e.dataTransfer.setData("text/plain", payload);
-          e.dataTransfer.setData("text", payload);
+          e.dataTransfer.setData("text/plain", JSON.stringify({ type: "object", id: obj.id }));
         };
-        
         item.ondragover = e => {
-            e.preventDefault();
-            e.stopPropagation();
-            e.dataTransfer.dropEffect = "move";
-            const rect = item.getBoundingClientRect();
-            const relY = e.clientY - rect.top;
-            if (relY < rect.height / 2) {
-              item.classList.add("drop-target-top");
-              item.classList.remove("drop-target-bottom");
-            } else {
-              item.classList.add("drop-target-bottom");
-              item.classList.remove("drop-target-top");
-            }
+          e.preventDefault(); e.stopPropagation();
+          e.dataTransfer.dropEffect = "move";
+          const rect = item.getBoundingClientRect();
+          if (e.clientY - rect.top < rect.height / 2) { item.classList.add("drop-target-top"); item.classList.remove("drop-target-bottom"); }
+          else { item.classList.add("drop-target-bottom"); item.classList.remove("drop-target-top"); }
         };
-        
-        item.ondragleave = () => {
-            item.classList.remove("drop-target-top", "drop-target-bottom");
-        };
-
+        item.ondragleave = () => { item.classList.remove("drop-target-top", "drop-target-bottom"); };
         item.ondrop = e => {
-            e.preventDefault();
-            e.stopPropagation();
-            const position = item.classList.contains("drop-target-top") ? "above" : "below";
-            item.classList.remove("drop-target-top", "drop-target-bottom");
-            
-            try {
-              const raw = e.dataTransfer.getData("text/plain") || e.dataTransfer.getData("text");
-              const d = JSON.parse(raw);
-              if (d.type === "object" && d.id) {
-                reorderInList("object", d.id, obj.id, position);
-              }
-            } catch(err) {}
+          e.preventDefault(); e.stopPropagation();
+          const position = item.classList.contains("drop-target-top") ? "above" : "below";
+          item.classList.remove("drop-target-top", "drop-target-bottom");
+          try {
+            const d = JSON.parse(e.dataTransfer.getData("text/plain"));
+            if (d.type && d.id) reorderUnified(d.type, d.id, "object", obj.id, position);
+          } catch (err) {}
         };
 
         item.appendChild(visBtn);
@@ -1383,6 +1502,7 @@ export function initApp() {
         item.appendChild(delBtn);
         item.querySelectorAll("button, span").forEach(el => el.setAttribute("draggable", "false"));
         list.appendChild(item);
+      }
     });
 
     updateHeadUsage();
@@ -1646,19 +1766,17 @@ export function initApp() {
   };
 
   const bringObjectForward = id => {
-    const index = drawObjects.findIndex(obj => obj.id === id);
-    if (index < 0 || index === drawObjects.length - 1) return;
-    const next = drawObjects[index + 1];
-    drawObjects[index + 1] = drawObjects[index];
-    drawObjects[index] = next;
+    const idx = layerOrder.findIndex(l => l.type === "object" && l.id === id);
+    if (idx < 0 || idx >= layerOrder.length - 1) return;
+    [layerOrder[idx], layerOrder[idx + 1]] = [layerOrder[idx + 1], layerOrder[idx]];
+    applyLayerZIndexes();
   };
 
   const sendObjectBackward = id => {
-    const index = drawObjects.findIndex(obj => obj.id === id);
-    if (index <= 0) return;
-    const prev = drawObjects[index - 1];
-    drawObjects[index - 1] = drawObjects[index];
-    drawObjects[index] = prev;
+    const idx = layerOrder.findIndex(l => l.type === "object" && l.id === id);
+    if (idx <= 0) return;
+    [layerOrder[idx], layerOrder[idx - 1]] = [layerOrder[idx - 1], layerOrder[idx]];
+    applyLayerZIndexes();
   };
 
   objectContextMenu.addEventListener("click", e => {
@@ -1906,6 +2024,12 @@ export function initApp() {
 
     selectedCharacterId = id;
 
+    // Deselect any selected object when selecting a character
+    if (id !== null && selectedObjectId !== null) {
+      selectedObjectId = null;
+      renderObjects();
+    }
+
     // Update character name display
     const characterNameEl = document.getElementById("characterName");
     if (characterNameEl) {
@@ -1949,6 +2073,9 @@ export function initApp() {
           sliders[k].dispatchEvent(new Event("input"));
         }
       });
+
+      // Sync position inputs
+      updatePositionInputs(c);
 
       // Restore zoom (camera position) and wrapper position
       if (c.viewer && c.cameraPos) {
@@ -1997,9 +2124,7 @@ export function initApp() {
           moveBtn.classList.toggle("active", is && ch.moveEnabled);
         }
       }
-      // Apply z-index based on array order (bottom of array = bottom layer = lower z-index)
-      // Array index 0 is at the bottom.
-      if (ch.wrapper) ch.wrapper.style.zIndex = 10 + index;
+      // z-index is managed by applyLayerZIndexes (including selected boost)
       
       // Allow pointer events on selected character's canvas for rotation
       if (ch.canvas) {
@@ -2021,8 +2146,8 @@ export function initApp() {
 
   // Wire addCharacter button
   const addCharacterBtn = document.getElementById("addCharacter");
-  if (addCharacterBtn)
-    addCharacterBtn.onclick = async () => {
+  const addCharacterLeftBtn = document.getElementById("addCharacterLeft");
+  const addCharHandler = async () => {
       const defaultName = `Character ${characters.length + 1}`;
       const name = await openModal({
         message: t("nameCharacter"),
@@ -2044,6 +2169,31 @@ export function initApp() {
       }
       createCharacter(cleanName);
     };
+  if (addCharacterBtn) addCharacterBtn.onclick = addCharHandler;
+  if (addCharacterLeftBtn) addCharacterLeftBtn.onclick = addCharHandler;
+
+  // --- Position inputs ---
+  const charPosXInput = document.getElementById("charPosX");
+  const charPosYInput = document.getElementById("charPosY");
+
+  function updatePositionInputs(c) {
+    if (charPosXInput) charPosXInput.value = Math.round(c ? c._posX : 0);
+    if (charPosYInput) charPosYInput.value = Math.round(c ? c._posY : 0);
+  }
+
+  function applyPositionFromInputs() {
+    const sel = getSelectedCharacter();
+    if (!sel) return;
+    const x = parseInt(charPosXInput?.value, 10) || 0;
+    const y = parseInt(charPosYInput?.value, 10) || 0;
+    sel._posX = x;
+    sel._posY = y;
+    const scale = sel.scale || 1;
+    sel.wrapper.style.transform = `translate(${x}px, ${y}px) scale(${scale})`;
+  }
+
+  if (charPosXInput) charPosXInput.addEventListener("input", applyPositionFromInputs);
+  if (charPosYInput) charPosYInput.addEventListener("input", applyPositionFromInputs);
 
   // Create initial character if none
   if (characters.length === 0) createCharacter("Main", STEVE_SKIN);
@@ -2433,6 +2583,10 @@ export function initApp() {
       drawCtx.strokeStyle = currentColor;
       drawCtx.fillStyle = currentColor;
       updateTextEditorStyle();
+    }
+    // Deselect character when selecting an object
+    if (id !== null && selectedCharacterId !== null) {
+      selectCharacter(null);
     }
     renderObjects();
   };
@@ -3016,8 +3170,62 @@ export function initApp() {
   renderObjects();
   renderLayersList();
 
-  // Click on renderArea to deselect character
-  renderArea.addEventListener("click", () => {
+  // Click on renderArea to deselect character (background only)
+  renderArea.addEventListener("click", e => {
+    if (clickThroughHandled) {
+      clickThroughHandled = false;
+      return;
+    }
+    const target = e.target;
+    if (target && target.closest) {
+      // Allow clicking on "empty" space (not viewport, not viewer content) to deselect
+      // but if we clicked a character viewport, keep selection
+      if (target.closest(".charViewport")) return;
+      
+      // If clicking inside viewer but not on a specific char (should be covered by charViewport check actually)
+      // The viewer div is inside rendering area. 
+      // We want to deselect if we click on DrawCanvas (empty part handled by mousedown) or Background.
+      // But we just want to avoid deselecting if we clicked a valid object.
+      // The previous logic was:
+      // if (target.closest(".charViewport")) return;
+      // if (target.closest("#viewer")) return;
+      // if (target.closest("#drawCanvas")) return;
+      
+      // The user wants: "quand on appuie n'importe ou ça déselectionne le perso" (except on the perso itself)
+      // So if it IS a charViewport, don't deselect. Otherwise, deselect.
+      // Note: Clicks on draw objects are handled by drawCanvas mousedown/click, which stops propagation if it hit something?
+      // Actually drawCanvas mousedown handles object selection.
+      // If drawCanvas mousedown HIT an object, it does selectObject(id) and selectCharacter(null).
+      // If it missed, it does selectObject(null).
+      // Then the CLICK event bubbles here. 
+      // If we clicked an object, selectObject handled it.
+      // If we clicked emptiness, we want selectCharacter(null).
+      // So, really, we just need to protect clicks that definitely ARE on a character.
+    }
+    
+    // If the click originated from a UI element overlaying the area (like a context menu), we might need care, 
+    // but here we are listening on renderArea.
+    
+    // Simple check: if we clicked a character, we returned above.
+    // If we clicked an object on canvas, the mousedown listener on canvas ALREADY handled logic.
+    // But wait, if logic ran on mousedown, and then we deselect here on click?
+    
+    // If we clicked an object: mousedown -> selectObject(id), selectCharacter(null).
+    // Then click bubbles to renderArea. renderArea -> selectCharacter(null). Harmless redundant call.
+    
+    // If we clicked nothing on canvas: mousedown -> selectObject(null). 
+    // Click bubbles -> renderArea -> selectCharacter(null). Correct.
+    
+    // If we clicked a character (click-through or direct): mousedown -> selectCharacter(id).
+    // Click bubbles -> renderArea. WE MUST NOT DESELECT.
+    // Ensure we detect if target is a character.
+    // Direct click: target is inside .charViewport.
+    // Click-through: target is #drawCanvas. BUT 'clickThroughHandled' is set!
+    // So if clickThroughHandled is checked (which it is above), we are safe for click-through.
+    // For direct click, we check .charViewport.
+    
+    if (target.closest(".charViewport")) return;
+
     selectCharacter(null);
   });
 
@@ -3429,6 +3637,14 @@ export function initApp() {
     };
   }
 
+  // Prevent click-through selection from being undone by renderArea click handler
+  drawCanvas.addEventListener("click", e => {
+    if (clickThroughHandled) {
+      e.stopPropagation();
+      clickThroughHandled = false;
+    }
+  });
+
   // Drawing events
   drawCanvas.addEventListener("mousedown", e => {
     if (selectMode) {
@@ -3602,6 +3818,7 @@ export function initApp() {
   }
 
   function handleSelectionDown(e) {
+    clickThroughHandled = false;
     const coords = getCanvasCoordinates(e);
     const selected = getObjectById(selectedObjectId);
     const handle = selected ? hitTestHandle(coords.x, coords.y, selected) : null;
@@ -3638,6 +3855,20 @@ export function initApp() {
     selectObject(null);
     isTransforming = false;
     transformData = null;
+
+    // Click-through: check if a character viewport is under the click
+    const elems = document.elementsFromPoint(e.clientX, e.clientY);
+    for (const el of elems) {
+      const viewport = el.closest ? el.closest(".charViewport") : null;
+      if (viewport && viewport.dataset.id) {
+        const charId = viewport.dataset.id;
+        if (characters.some(c => c.id === charId)) {
+          selectCharacter(charId);
+          clickThroughHandled = true;
+          return;
+        }
+      }
+    }
   }
 
   function handleSelectionMove(e) {
@@ -3768,7 +3999,18 @@ export function initApp() {
     btn.onclick = () => {
       const part = btn.dataset.part;
       const sel = getSelectedCharacter();
-      if (!sel || !sel.viewer) return;
+      if (!sel) return;
+
+      if (part === "position") {
+        sel._posX = 0;
+        sel._posY = 0;
+        const scale = sel.scale || 1;
+        sel.wrapper.style.transform = `translate(0px, 0px) scale(${scale})`;
+        updatePositionInputs(sel);
+        return;
+      }
+
+      if (!sel.viewer) return;
       const s = sel.viewer.playerObject.skin;
 
       if (part === "headX") {
@@ -3814,6 +4056,14 @@ export function initApp() {
         s.leftArm.rotation.set(0, 0, 0);
         s.rightLeg.rotation.set(0, 0, 0);
         s.leftLeg.rotation.set(0, 0, 0);
+      }
+      // Also reset position
+      if (sel) {
+        sel._posX = 0;
+        sel._posY = 0;
+        const scale = sel.scale || 1;
+        sel.wrapper.style.transform = `translate(0px, 0px) scale(${scale})`;
+        updatePositionInputs(sel);
       }
     };
   }
@@ -4258,6 +4508,7 @@ export function initApp() {
 
     const scale = dragChar.scale || 1;
     dragChar.wrapper.style.transform = `translate(${dragChar._posX}px, ${dragChar._posY}px) scale(${scale})`;
+    updatePositionInputs(dragChar);
   });
 
   // Mouse up - always stop dragging
