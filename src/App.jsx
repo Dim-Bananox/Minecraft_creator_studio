@@ -49,11 +49,11 @@ export default function App() {
               <option value="it">Italiano</option>
             </select>
           </div>
-        </div>
+        </div> ,
         <header className="homeHero">
           <img
             className="homeLogo"
-            src="/icons/website_logo.png"
+            src="./icons/website_logo.png"
             alt="Minecraft Creator Studio logo"
           />
           <div className="homeHeroText">
@@ -327,12 +327,18 @@ export default function App() {
             </button>
           </div>
 
-          <div className="panelSection">
+          <div className="panelSection panelSection--layers">
             <h3 data-i18n="layers">Layers</h3>
-            <button id="clearLayersBtn" className="btnGhost" data-i18n="clearLayers">
-              Clear Layers
-            </button>
-            <div id="layersList" className="layersList"></div>
+            <div className="layersScroll">
+              <div className="layerGroupItems">
+                <h4 data-i18n="layersCharacters">Characters</h4>
+                <div id="layersListCharacters" className="layersList layersListBox"></div>
+              </div>
+              <div className="layerGroupItems">
+                <h4 data-i18n="layersObjects">Objects</h4>
+                <div id="layersListObjects" className="layersList layersListBox"></div>
+              </div>
+            </div>
           </div>
         </div>
 

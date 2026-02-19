@@ -1178,7 +1178,68 @@ body.light #objectContextMenu button:hover {
 }
 
 /* Layers List Styles */
-#layersList {
+.layersSplit {
+    display: flex;
+    flex-direction: column;
+    gap: 10px;
+}
+
+.layersSection {
+    display: flex;
+    flex-direction: column;
+    gap: 6px;
+}
+
+.layersSubHeader {
+    font-size: 12px;
+    font-weight: 700;
+    letter-spacing: 0.6px;
+    text-transform: uppercase;
+    color: rgba(226, 232, 240, 0.85);
+}
+
+body.light .layersSubHeader {
+    color: rgba(15, 23, 42, 0.75);
+}
+
+.layersListBox {
+    padding: 8px;
+    border-radius: 8px;
+    background: rgba(15, 23, 42, 0.35);
+    border: 1px solid rgba(148, 163, 184, 0.2);
+    max-height: none;
+    overflow: visible;
+}
+
+.panelSection--layers {
+    max-height: 360px;
+}
+
+.layersScroll {
+    max-height: 300px;
+    overflow-y: auto;
+    padding-right: 4px;
+    display: flex;
+    flex-direction: column;
+    gap: 12px;
+}
+
+body.light .layersListBox {
+    background: rgba(226, 232, 240, 0.75);
+    border-color: rgba(148, 163, 184, 0.4);
+}
+
+.layerGroupHeader {
+    border-radius: 6px;
+}
+
+.layerGroupItems {
+    display: flex;
+    flex-direction: column;
+    gap: 6px;
+}
+
+.layersList {
     width: 100%;
     display: flex;
     flex-direction: column;
